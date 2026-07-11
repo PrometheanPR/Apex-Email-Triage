@@ -1,1 +1,21 @@
-.agents/.env
+# Environment & secrets — NEVER commit these
+.env
+token.pickle
+credentials.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
