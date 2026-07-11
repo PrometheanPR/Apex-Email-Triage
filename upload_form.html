@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apex Operations - Document Upload Portal</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f5f7fb;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 500px;
+            box-sizing: border-box;
+        }
+        h1 {
+            font-size: 1.8rem;
+            color: #1a1f36;
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            border-bottom: 2px solid #f0f2f5;
+            padding-bottom: 1rem;
+        }
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #4f566b;
+            font-size: 0.9rem;
+        }
+        input[type="text"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 0.95rem;
+            color: #333;
+            transition: border-color 0.2s;
+        }
+        input[type="text"]:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #5469d4;
+        }
+        input[type="file"] {
+            display: block;
+            margin-top: 0.5rem;
+            font-size: 0.95rem;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        button {
+            background-color: #5469d4;
+            color: #ffffff;
+            border: none;
+            border-radius: 4px;
+            padding: 0.9rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            width: 100%;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-top: 1rem;
+        }
+        button:hover {
+            background-color: #4c5ebd;
+        }
+        #message-box {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border-radius: 4px;
+            display: none;
+            font-size: 0.95rem;
+            line-height: 1.4;
+        }
+        .success {
+            background-color: #e6f4ea;
+            color: #137333;
+            border: 1px solid #c2e7c9;
+        }
+        .error {
+            background-color: #fce8e6;
+            color: #c5221f;
+            border: 1px solid #fad2cf;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Document Upload Portal</h1>
+        <form id="upload-form" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="uploader_name">Uploader Name *</label>
+                <input type="text" id="uploader_name" name="uploader_name" required placeholder="Your full name">
+            </div>
+
+            <div class="form-group">
+                <label for="category">Category *</label>
+                <select id="category" name="category" required>
+                    <option value="" disabled selected>Select a category</option>
+                    <option value="services">Services</option>
+                    <option value="billing">Billing</option>
+                    <option value="faq">FAQ</option>
+                    <option value="compliance">Compliance</option>
+                    <option value="vendor">Vendor</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description *</label>
+                <textarea id="description" name="description" required placeholder="Provide a brief description of the document"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="file">Document File (PDF or DOCX) *</label>
+                <input type="file" id="file" name="file" accept=".pdf,.docx" required>
+            </div>
+
+            <button type="submit" id="submit-btn">Upload Document</button>
+        </form>
+
+        <div id="message-box"></div>
+    </div>
+
+    <script>
+        const form = document.getElementById('upload-form');
+        const submitBtn = document.getElementById('submit-btn');
+        const messageBox = document.getElementById('message-box');
+
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // Disable button and show processing status
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Uploading...';
+            messageBox.style.display = 'none';
+            messageBox.className = '';
+            messageBox.textContent = '';
+
+            const formData = new FormData(form);
+
+            try {
+                const response = await fetch('/webhook/upload-document', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                messageBox.style.display = 'block';
+                if (response.ok && result.success) {
+                    messageBox.className = 'success';
+                    messageBox.innerHTML = `<strong>Success!</strong> ${result.message}<br><br>File Name: ${result.file_name}`;
+                    form.reset();
+                } else {
+                    messageBox.className = 'error';
+                    messageBox.innerHTML = `<strong>Upload Failed:</strong> ${result.message || 'An unknown error occurred.'}`;
+                }
+            } catch (error) {
+                messageBox.style.display = 'block';
+                messageBox.className = 'error';
+                messageBox.innerHTML = `<strong>Error:</strong> Network error or server is unreachable.`;
+                console.error('Upload error:', error);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Upload Document';
+            }
+        });
+    </script>
+</body>
+</html>

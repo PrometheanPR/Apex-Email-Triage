@@ -1,0 +1,254 @@
+{
+  "name": "Apex Operations \u2014 Document Upload (v2 Demo)",
+  "nodes": [
+    {
+      "id": "9e14a84e-ffb9-47e1-96a3-d152b601a9c0",
+      "name": "Receive Document Upload",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -300,
+        100
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "upload-document",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "7763f513-8d22-49c3-ac09-7be8b41a15d2",
+      "name": "Validate Upload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -50,
+        100
+      ],
+      "continueOnFail": true,
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst binaryData = $input.first().binary || {};\n\nconst category = body.category || '';\nconst description = body.description || '';\nconst uploaderName = body.uploader_name || 'Unknown';\nconst validCategories = ['services', 'billing', 'faq', 'compliance', 'vendor', 'other'];\n\nif (!validCategories.includes(category)) {\n  throw new Error('INVALID_CATEGORY: ' + category);\n}\n\nconst fileKey = Object.keys(binaryData)[0];\nif (!fileKey) throw new Error('NO_FILE: No file found in upload');\n\nconst fileName = binaryData[fileKey].fileName || 'upload';\nconst mimeType = binaryData[fileKey].mimeType || '';\nconst allowedMimes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];\nif (!allowedMimes.includes(mimeType)) throw new Error('INVALID_FILE_TYPE: ' + mimeType);\n\nreturn [{ json: { category, description, uploader_name: uploaderName, file_key: fileKey, file_name: fileName, mime_type: mimeType, timestamp: new Date().toISOString() }, binary: binaryData }];"
+      }
+    },
+    {
+      "id": "89b41203-6301-41a4-bb32-9d4161b3a404",
+      "name": "Upload Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        200,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.file_name }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "8878c755-f6e7-4806-bd60-c8b955c8fd05",
+      "name": "Upload to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        450,
+        0
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "DEMO_GDRIVE_OAUTH",
+          "name": "Google Drive OAuth2"
+        }
+      },
+      "parameters": {
+        "operation": "upload",
+        "folderId": {
+          "__rl": true,
+          "value": "13LPG5a-EBYRlxurpI1b0P_1TsAOE5CCn",
+          "mode": "id"
+        },
+        "fileName": "={{ $json.file_name }}",
+        "binaryPropertyName": "={{ $json.file_key }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "0e2ee083-a323-498f-a4ba-fc61df888f9b",
+      "name": "Slack Upload Confirmation",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        700,
+        0
+      ],
+      "continueOnFail": true,
+      "credentials": {
+        "slackApi": {
+          "id": "DEMO_SLACK_OAUTH",
+          "name": "Slack OAuth2"
+        }
+      },
+      "parameters": {
+        "select": "channel",
+        "channelId": "#admin",
+        "text": ":page_facing_up: *New document uploaded to knowledge base*\\n*File:* {{ $('Validate Upload').item.json.file_name }}\\n*Category:* {{ $('Validate Upload').item.json.category }}\\n*Description:* {{ $('Validate Upload').item.json.description }}\\n*Uploaded by:* {{ $('Validate Upload').item.json.uploader_name }}\\n*Time:* {{ $('Validate Upload').item.json.timestamp }}\\n*Drive link:* {{ $json.webViewLink }}"
+      }
+    },
+    {
+      "id": "7594e7d9-b378-42b5-b1d2-f20c2e38c9ec",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        950,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": true,\n  \"message\": \"Document uploaded successfully.\",\n  \"file_name\": \"{{ $('Validate Upload').item.json.file_name }}\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "58aedc01-a6f0-4160-a338-d5aaad542932",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        450,
+        200
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": false,\n  \"message\": \"{{ $json.message }}\"\n}",
+        "options": {
+          "responseCode": 400
+        }
+      }
+    },
+    {
+      "id": "47f8fd91-47df-418a-89f9-8493715deecc",
+      "name": "Overview Sticky",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        -250
+      ],
+      "parameters": {
+        "width": 350,
+        "height": 180,
+        "content": "### \ud83d\udcc4 Apex \u2014 Document Upload (v2)\nThis workflow receives files from the external HTML form at /upload-document, validates them, uploads to Google Drive, and confirms via Slack.\n\n**Webhook URL Format:**\nhttps://YOURINSTANCE.app.n8n.cloud/webhook/upload-document"
+      }
+    },
+    {
+      "id": "6ebf4a13-bfd1-4833-bb1d-d7827d81418b",
+      "name": "Setup Sticky",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        -50
+      ],
+      "parameters": {
+        "width": 350,
+        "height": 200,
+        "content": "### SETUP CHECKLIST\n1. Copy webhook URL from Webhook node and paste into upload_form.html `WEBHOOK_URL` variable.\n2. Configure Google Drive OAuth2 credential.\n3. Invite Slack bot to #admin.\n4. Activate workflow BEFORE testing the form."
+      }
+    },
+    {
+      "id": "2c36743e-19ba-452e-b8e8-2eb4e60134dd",
+      "name": "Security Sticky",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        800,
+        -250
+      ],
+      "parameters": {
+        "width": 350,
+        "height": 180,
+        "content": "### \u26a0\ufe0f Security Note\nThis webhook has no authentication by default.\n\nFor production, add a shared secret header check in the Validate Upload node, or enable n8n webhook authentication in settings."
+      }
+    }
+  ],
+  "connections": {
+    "Receive Document Upload": {
+      "main": [
+        [
+          {
+            "node": "Validate Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Upload": {
+      "main": [
+        [
+          {
+            "node": "Upload Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Valid?": {
+      "main": [
+        [
+          {
+            "node": "Upload to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Slack Upload Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Upload Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "superagent-instance"
+  }
+}
