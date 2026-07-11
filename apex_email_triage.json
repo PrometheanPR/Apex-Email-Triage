@@ -1,0 +1,1182 @@
+{
+  "name": "Apex Operations — AI Email Triage (Demo)",
+  "description": "README — Apex Operations AI Email Triage\n\nWHAT THIS WORKFLOW DOES\nAutomatically triages incoming client emails using AI. For each new email: (1) classifies it into a category (new inquiry, client support, billing, escalation) and priority level, (2) retrieves the most relevant internal document from Google Drive, (3) drafts a professional reply grounded in that document and saves it to Gmail Drafts for human review, (4) logs the interaction to HubSpot (creating or updating the contact), and (5) notifies the correct Slack channel. No email is ever sent automatically.\n\nPREREQUISITES\n1. Gmail label: Create a label called 'Client Incoming' and apply it to inbound client emails (via Gmail filters). If this label does not exist, the trigger falls back to INBOX.\n2. HubSpot Private App: Create a Private App at app.hubspot.com with scopes: crm.objects.contacts.read, crm.objects.contacts.write, crm.objects.notes.write. Copy the access token.\n3. HubSpot custom property: Add a contact property named 'last_inquiry_type' (type: single-line text) under Settings > Properties.\n4. Slack Bot: Create a Slack app with chat:write and chat:write.public scopes. Install to workspace. Ensure channels #sales, #account-management, and #admin exist.\n5. Google Drive: Confirm folder ID 13LPG5a-EBYRlxurpI1b0P_1TsAOE5CCn contains your internal docs.\n6. OpenAI: Obtain an API key with access to gpt-4o.\n\nCREDENTIAL CONFIGURATION\nIn n8n, create the following credentials before activating:\n- 'Gmail OAuth2' — Google OAuth2, scope: gmail + drive\n- 'Google Drive OAuth2' — same OAuth app\n- 'OpenAI API Key' — paste your sk- key\n- 'HubSpot API Key' — paste your Private App token (hsp_...)\n- 'Slack OAuth2' — paste your Slack Bot Token (xoxb-...)\n\nHOW TO TEST\n1. Import this workflow via Workflows > Import from JSON.\n2. Re-select all credentials in each node (credential IDs are instance-specific).\n3. Send a test email to the Gmail account with subject 'Test Inquiry' from a known address.\n4. Execute manually (set Gmail Trigger to manual for first test).\n5. Verify: Gmail Draft created, HubSpot contact created/updated, Slack message sent to correct channel.\n\nNOTE: This is a portfolio demonstration workflow. All credential values are placeholders. Review all node parameters before production use.",
+  "nodes": [
+    {
+      "id": "54323928-3174-4296-870e-14b5f23728a5",
+      "name": "Sticky Note — Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -900,
+        -300
+      ],
+      "parameters": {
+        "content": "## 🗂️ Apex Operations — AI Email Triage\n\n**What this workflow does:**\nPolls Gmail every 5 min → AI classifies email → retrieves relevant internal doc → drafts reply → saves to Gmail Drafts → logs to HubSpot → notifies Slack.\n\n**⚠️ No email is ever sent automatically.** All drafts require human review.\n\n**Flow:**\nGmail Trigger → AI Categorize → Parse JSON → [IF new_inquiry → Services Doc] [ELSE → Category Doc] → Draft LLM → Gmail Draft → HubSpot Lookup → [IF exists → Update] [ELSE → Create] → Slack Switch → Slack Notify",
+        "height": 260,
+        "width": 600,
+        "color": 5
+      }
+    },
+    {
+      "id": "5332055c-11f7-4ac3-89c8-abde73a03be6",
+      "name": "Sticky Note — HubSpot Logic",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1400,
+        -300
+      ],
+      "parameters": {
+        "content": "## 🏢 HubSpot Find-or-Create Logic\n\nThe workflow searches HubSpot by sender email.\n\n- **Contact found** → Create a note on the existing record + update `last_inquiry_type` property.\n- **Contact not found** → Create a new contact (email, first name, last name, last_inquiry_type) then create the note.\n\nEither way, the triage log (category, priority, summary, AI draft) is always written as a HubSpot note.\n\n**Required scopes on your Private App:**\n`crm.objects.contacts.read` · `crm.objects.contacts.write` · `crm.objects.notes.write`",
+        "height": 260,
+        "width": 500,
+        "color": 3
+      }
+    },
+    {
+      "id": "f825fec1-b86d-44ee-94f0-cd64d79db196",
+      "name": "Sticky Note — Gmail Draft",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        800,
+        -300
+      ],
+      "parameters": {
+        "content": "## ✉️ Human Review Required\n\n**This node saves a DRAFT — it does NOT send email.**\n\nThe AI-generated response is written to Gmail Drafts only. A team member must open Gmail, review the draft, edit as needed, and send manually.\n\nThe draft is labelled `[DRAFT FOR REVIEW]` at the top so it is never accidentally sent as-is.",
+        "height": 200,
+        "width": 380,
+        "color": 4
+      }
+    },
+    {
+      "id": "4a3d4dbb-3095-42e4-8a4b-c80cf0becb48",
+      "name": "Sticky Note — Setup Checklist",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -900,
+        0
+      ],
+      "parameters": {
+        "content": "## ✅ SETUP CHECKLIST\n\n1. Create Gmail label **'Client Incoming'** and set up Gmail filters to apply it to inbound client emails.\n2. Create **HubSpot Private App** with scopes: `crm.objects.contacts.read`, `crm.objects.contacts.write`, `crm.objects.notes.write`. Copy the access token.\n3. Add custom HubSpot contact property **`last_inquiry_type`** (type: single-line text).\n4. Create Slack channels: **#sales**, **#account-management**, **#admin**. Ensure bot is invited to each.\n5. **Swap all DEMO_ placeholder credentials** for real values in every node.\n6. Verify Google Drive folder ID **13LPG5a-EBYRlxurpI1b0P_1TsAOE5CCn** is accessible by your Drive OAuth account.\n7. Set OpenAI API key with access to **gpt-4o**.",
+        "height": 300,
+        "width": 500,
+        "color": 6
+      }
+    },
+    {
+      "id": "119a56bc-d963-4126-8788-8c6ca2783ea4",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -280,
+        300
+      ],
+      "description": "Polls Gmail every 5 minutes for new client emails. Only processes emails not yet seen.",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "DEMO_GMAIL_OAUTH",
+          "name": "Gmail OAuth2"
+        }
+      },
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 5,
+              "unit": "minutes"
+            }
+          ]
+        },
+        "filters": {
+          "labelIds": [
+            "Label_Client_Incoming"
+          ]
+        },
+        "options": {
+          "dataPropertyAttachmentsPrefixName": "attachment_",
+          "downloadAttachments": false
+        }
+      }
+    },
+    {
+      "id": "e1fd417b-60f7-4f97-9782-4aa94c38209d",
+      "name": "AI Categorize Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -60,
+        300
+      ],
+      "description": "Sends email to LLM for classification. Returns structured JSON with category, priority, summary, and routing.",
+      "credentials": {},
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-DEMO-xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "model": "gpt-4o",
+          "temperature": 0,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are an email triage assistant for a B2B operations consulting firm. Analyze the email and return ONLY a valid JSON object with these exact fields: {\"category\": \"new_inquiry|client_support|billing|escalation\", \"priority\": \"critical|high|medium|low\", \"summary\": \"max 15 words describing the request\", \"route_to\": \"sales|account_manager|admin\"}. Return no other text."
+            },
+            {
+              "role": "user",
+              "content": "=From: {{ $json.from.name }} <{{ $json.from.value[0].address }}>\nSubject: {{ $json.subject }}\nBody:\n{{ $json.text }}"
+            }
+          ]
+        },
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "timeout": 30000,
+        "options": {}
+      }
+    },
+    {
+      "id": "31ea1070-a5f4-41f8-9677-648b43662aab",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        300
+      ],
+      "description": "Parses the LLM JSON response and merges triage fields with the original email data. Throws on malformed JSON so the error handler can catch it.",
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const emailItem = $('Gmail Trigger').item.json;\nconst rawContent = $input.first().json.choices[0].message.content.trim();\n\nlet triage;\ntry {\n  triage = JSON.parse(rawContent);\n} catch (e) {\n  throw new Error('MALFORMED_AI_JSON: ' + rawContent);\n}\n\nconst validCategories = ['new_inquiry', 'client_support', 'billing', 'escalation'];\nconst validPriorities = ['critical', 'high', 'medium', 'low'];\nconst validRoutes = ['sales', 'account_manager', 'admin'];\n\nif (!validCategories.includes(triage.category)) throw new Error('INVALID_CATEGORY: ' + triage.category);\nif (!validPriorities.includes(triage.priority)) throw new Error('INVALID_PRIORITY: ' + triage.priority);\nif (!validRoutes.includes(triage.route_to)) throw new Error('INVALID_ROUTE: ' + triage.route_to);\n\nconst fromAddr = emailItem.from?.value?.[0]?.address || emailItem.from?.text || '';\nconst fromName = emailItem.from?.value?.[0]?.name || fromAddr.split('@')[0];\nconst nameParts = fromName.trim().split(' ');\n\nreturn [{\n  json: {\n    sender_email: fromAddr,\n    sender_name: fromName,\n    sender_first_name: nameParts[0] || '',\n    sender_last_name: nameParts.slice(1).join(' ') || '',\n    subject: emailItem.subject || '(no subject)',\n    body: emailItem.text || emailItem.snippet || '',\n    timestamp: new Date().toISOString(),\n    category: triage.category,\n    priority: triage.priority,\n    summary: triage.summary,\n    route_to: triage.route_to\n  }\n}];"
+      }
+    },
+    {
+      "id": "5bc24d3d-a7ad-46c2-aae7-0be9a9729092",
+      "name": "AI Parse Error — Slack Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        160,
+        520
+      ],
+      "description": "Fires if the AI returns malformed JSON. Sends an alert to #admin for manual review. Workflow stops here for this execution.",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "DEMO_SLACK_OAUTH",
+          "name": "Slack OAuth2"
+        }
+      },
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "channel": "#admin",
+        "text": "=:warning: *Email triage failed — malformed AI response.*\nManual review needed for email from: {{ $('Gmail Trigger').item.json.from.value[0].address }}\nSubject: {{ $('Gmail Trigger').item.json.subject }}\n\nPlease process this email manually.",
+        "otherOptions": {}
+      }
+    },
+    {
+      "id": "066ba780-c536-408e-ae98-0299fef1b1eb",
+      "name": "Is New Inquiry?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        400,
+        300
+      ],
+      "description": "Routes new inquiries to the Services Overview document. All other categories search for the most relevant internal document.",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "824efd19-0fc6-4ca2-af28-6c4e3b664a4b",
+              "leftValue": "={{ $json.category }}",
+              "rightValue": "new_inquiry",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ae71fe1b-f5bf-4d4c-98d3-47e918602511",
+      "name": "Get Services Overview Doc",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        640,
+        160
+      ],
+      "description": "Retrieves the Services Overview document to ground the AI draft for new inquiry emails.",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "DEMO_GDRIVE_OAUTH",
+          "name": "Google Drive OAuth2"
+        }
+      },
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "1esIaycXlDZz5lE-1zILm8QOggDiWR6rp3jG23-5ChRM",
+          "mode": "id"
+        },
+        "options": {
+          "mimeType": "text/plain"
+        }
+      }
+    },
+    {
+      "id": "a500d852-de9e-48cc-9429-39d1acd6603d",
+      "name": "Select Doc by Category",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        440
+      ],
+      "description": "Selects the correct internal document based on email category. Billing emails get billing procedures; support/escalation emails get the FAQ.",
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const category = $input.first().json.category;\n\nconst docMap = {\n  billing: '1Z396LRKYmC1ENInWY-X946U3NL5igobQ2-yhjrJo2n4',\n  escalation: '1thH0AsJQaDpaTo9JgNhXbN6YUlrYZk6WKcu5WFm4aJ4',\n  client_support: '1thH0AsJQaDpaTo9JgNhXbN6YUlrYZk6WKcu5WFm4aJ4'\n};\n\nconst fileId = docMap[category] || null;\n\nreturn [{\n  json: {\n    ...$input.first().json,\n    selected_file_id: fileId,\n    doc_fallback: fileId === null\n  }\n}];"
+      }
+    },
+    {
+      "id": "3d78aae6-b2d5-422b-bbf6-e730b7aea4a5",
+      "name": "Get Category Doc",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        880,
+        440
+      ],
+      "description": "Downloads the selected internal document. If no file matched the category, passes a fallback message to the draft LLM.",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "DEMO_GDRIVE_OAUTH",
+          "name": "Google Drive OAuth2"
+        }
+      },
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.selected_file_id }}",
+          "mode": "id"
+        },
+        "options": {
+          "mimeType": "text/plain"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "8cbfb037-f4f7-46db-9955-50946a3c7b7d",
+      "name": "Merge Doc Paths",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        300
+      ],
+      "description": "Reunites the new_inquiry and existing-client document paths into a single stream before the draft LLM call.",
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      }
+    },
+    {
+      "id": "b7d9ee2c-3b74-4761-9bce-b9b340b1e2dc",
+      "name": "Prepare Doc Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ],
+      "description": "Extracts plain text from the Google Drive download response. Falls back to a standard message if no document was retrieved.",
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const item = $input.first().json;\n// Google Drive download returns binary data — text is in $binary or data field\n// For exported Google Docs (text/plain), content may be in item.data or needs binary read\nlet docContent = 'Documentation not found — please draft this response manually referencing your internal SOPs.';\n\nif (item.data) {\n  docContent = Buffer.from(item.data, 'base64').toString('utf8');\n} else if (item.text) {\n  docContent = item.text;\n}\n\n// Pull triage data from Parse AI Response node\nconst triage = $('Parse AI Response').item.json;\n\nreturn [{\n  json: {\n    sender_email: triage.sender_email,\n    sender_name: triage.sender_name,\n    sender_first_name: triage.sender_first_name,\n    sender_last_name: triage.sender_last_name,\n    subject: triage.subject,\n    body: triage.body,\n    timestamp: triage.timestamp,\n    category: triage.category,\n    priority: triage.priority,\n    summary: triage.summary,\n    route_to: triage.route_to,\n    doc_content: docContent.substring(0, 8000)  // cap at 8k chars for context window\n  }\n}];"
+      }
+    },
+    {
+      "id": "cca10a17-e43d-4dea-b2f6-f4a9cca96a20",
+      "name": "Draft Email Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        300
+      ],
+      "description": "Drafts a professional email response grounded in internal documentation. Never sends — output goes to Gmail Drafts for human review.",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-DEMO-xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "model": "gpt-4o",
+          "temperature": 0.4,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a professional consultant drafting a client email response on behalf of Apex Operations Consulting. Use only the internal documentation excerpt provided — do not invent facts not present in the document. Write in a warm, professional tone. Keep the response under 200 words. End with a clear next step or call to action. This draft will be reviewed by a human before sending — label the top of the response with [DRAFT FOR REVIEW]."
+            },
+            {
+              "role": "user",
+              "content": "=Client email from {{ $json.sender_name }}:\n{{ $json.body }}\n\nRelevant internal documentation:\n{{ $json.doc_content }}"
+            }
+          ]
+        },
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "timeout": 30000,
+        "options": {}
+      }
+    },
+    {
+      "id": "6623d70f-bf55-4099-a52b-a4cae1c077bb",
+      "name": "Extract Draft Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        300
+      ],
+      "description": "Extracts the draft text from the OpenAI response and merges it with triage data for downstream nodes.",
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const draftText = $input.first().json.choices[0].message.content;\nconst triage = $('Prepare Doc Content').item.json;\n\nreturn [{\n  json: {\n    ...triage,\n    draft_text: draftText\n  }\n}];"
+      }
+    },
+    {
+      "id": "581ca33c-308b-4ca9-aa6b-bf46fd042dba",
+      "name": "Create Gmail Draft",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2000,
+        300
+      ],
+      "description": "Saves the AI-generated draft to Gmail Drafts. The team reviews and sends manually — no email is ever auto-sent.",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "DEMO_GMAIL_OAUTH",
+          "name": "Gmail OAuth2"
+        }
+      },
+      "parameters": {
+        "operation": "createDraft",
+        "sendTo": "={{ $json.sender_email }}",
+        "subject": "=Re: {{ $json.subject }}",
+        "message": "={{ $json.draft_text }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "e7290fc3-e453-47f7-b856-fac6433cd652",
+      "name": "HubSpot Search Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2220,
+        300
+      ],
+      "description": "Looks up the sender in HubSpot by email address to find their existing contact record.",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer hsp_DEMO_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "filterGroups": [
+            {
+              "filters": [
+                {
+                  "propertyName": "email",
+                  "operator": "EQ",
+                  "value": "={{ $json.sender_email }}"
+                }
+              ]
+            }
+          ],
+          "properties": [
+            "email",
+            "firstname",
+            "lastname",
+            "hs_object_id",
+            "last_inquiry_type"
+          ],
+          "limit": 1
+        },
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 2000,
+        "continueOnFail": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "62c65ec4-58cc-41bc-a8f5-244243763be7",
+      "name": "Extract Contact ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2440,
+        300
+      ],
+      "description": "Extracts the HubSpot contact ID from the search response. Sets contact_id to null if no match found or if API errored.",
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const hsResponse = $input.first().json;\nconst triage = $('Extract Draft Text').item.json;\n\nlet contactId = null;\nlet portalId = 'YOUR_PORTAL_ID'; // Replace with your HubSpot portal ID\n\nif (hsResponse.results && hsResponse.results.length > 0) {\n  contactId = hsResponse.results[0].id;\n}\n\nreturn [{\n  json: {\n    ...triage,\n    contact_id: contactId,\n    contact_exists: contactId !== null,\n    portal_id: portalId\n  }\n}];"
+      }
+    },
+    {
+      "id": "4fd4f51e-0ddf-4e82-bdfa-cd6709529662",
+      "name": "Contact Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2660,
+        300
+      ],
+      "description": "Determines whether to update an existing CRM contact or create a new one.",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3bdfdf5c-e75a-4232-8e37-43e0ee36c27c",
+              "leftValue": "={{ $json.contact_exists }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c3ec9157-acbc-4777-b3d8-72d6b30284e6",
+      "name": "Update HubSpot Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2880,
+        160
+      ],
+      "description": "Logs the email triage result and AI draft as a HubSpot note. Updates the contact's last inquiry type property.",
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.hubapi.com/crm/v3/objects/contacts/{{ $json.contact_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer hsp_DEMO_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "properties": {
+            "last_inquiry_type": "={{ $json.category }}"
+          }
+        },
+        "retryOnFail": true,
+        "maxTries": 2,
+        "continueOnFail": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "abf88fdd-f7f4-4eb8-b45e-2c448a07216f",
+      "name": "Create Note — Existing Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3100,
+        160
+      ],
+      "description": "Creates a HubSpot note on the existing contact record logging the full triage result.",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/notes",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer hsp_DEMO_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "properties": {
+            "hs_note_body": "=AI Email Triage Log\nDate: {{ $json.timestamp }}\nFrom: {{ $json.sender_name }} <{{ $json.sender_email }}>\nCategory: {{ $json.category }} | Priority: {{ $json.priority }}\nSummary: {{ $json.summary }}\nRouted to: {{ $json.route_to }}\n\nAI Draft:\n{{ $json.draft_text }}"
+          },
+          "associations": [
+            {
+              "to": {
+                "id": "={{ $json.contact_id }}"
+              },
+              "types": [
+                {
+                  "associationCategory": "HUBSPOT_DEFINED",
+                  "associationTypeId": 202
+                }
+              ]
+            }
+          ]
+        },
+        "retryOnFail": true,
+        "maxTries": 2,
+        "continueOnFail": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "7479ce11-4fca-4978-b965-6a2723cf1fc8",
+      "name": "Create HubSpot Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2880,
+        440
+      ],
+      "description": "Creates a new HubSpot contact for first-time senders, then logs the triage result as a note.",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer hsp_DEMO_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "properties": {
+            "email": "={{ $json.sender_email }}",
+            "firstname": "={{ $json.sender_first_name }}",
+            "lastname": "={{ $json.sender_last_name }}",
+            "last_inquiry_type": "={{ $json.category }}"
+          }
+        },
+        "retryOnFail": true,
+        "maxTries": 2,
+        "continueOnFail": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "32151eb9-46f2-4170-b1c6-374e213ee70b",
+      "name": "Create Note — New Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3100,
+        440
+      ],
+      "description": "Creates a HubSpot note on the newly created contact, logging the full triage result.",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/notes",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer hsp_DEMO_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "properties": {
+            "hs_note_body": "=AI Email Triage Log\nDate: {{ $json.timestamp }}\nFrom: {{ $json.sender_name }} <{{ $json.sender_email }}>\nCategory: {{ $json.category }} | Priority: {{ $json.priority }}\nSummary: {{ $json.summary }}\nRouted to: {{ $json.route_to }}\n\nAI Draft:\n{{ $json.draft_text }}"
+          },
+          "associations": [
+            {
+              "to": {
+                "id": "={{ $json.id }}"
+              },
+              "types": [
+                {
+                  "associationCategory": "HUBSPOT_DEFINED",
+                  "associationTypeId": 202
+                }
+              ]
+            }
+          ]
+        },
+        "retryOnFail": true,
+        "maxTries": 2,
+        "continueOnFail": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "f524f0cb-38e7-41cc-b7b8-06d0fde83f28",
+      "name": "Merge HubSpot Paths",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        3320,
+        300
+      ],
+      "description": "Reunites the existing-contact and new-contact paths before the Slack routing step.",
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      }
+    },
+    {
+      "id": "6a462fe0-c372-49fe-baa7-cd873b4c487a",
+      "name": "Route to Slack Channel",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.1,
+      "position": [
+        3540,
+        300
+      ],
+      "description": "Routes to the correct Slack channel based on route_to value: sales → #sales, account_manager → #account-management, admin → #admin.",
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "0ba60e70-542c-4ab3-870f-fcf2ebff857a",
+                    "leftValue": "={{ $json.route_to }}",
+                    "rightValue": "sales",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "sales"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "36866d04-2d98-49e2-9858-e3f0fdb86e43",
+                    "leftValue": "={{ $json.route_to }}",
+                    "rightValue": "account_manager",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "account_manager"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "e2576011-cec1-4350-bbbe-fb21806d8d82",
+                    "leftValue": "={{ $json.route_to }}",
+                    "rightValue": "admin",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "admin"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "64056fd5-695b-4349-af7c-23e673f608c0",
+      "name": "Slack — #sales",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        3760,
+        160
+      ],
+      "description": "Notifies #sales that a new email has been triaged. Includes HubSpot contact link and reminder that the Gmail draft needs review.",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "DEMO_SLACK_OAUTH",
+          "name": "Slack OAuth2"
+        }
+      },
+      "continueOnFail": true,
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "channel": "#sales",
+        "text": "=:email: *New client email triaged*\n*From:* {{ $json.sender_name }} <{{ $json.sender_email }}>\n*Category:* {{ $json.category }} | *Priority:* {{ $json.priority }}\n*Summary:* {{ $json.summary }}\n*HubSpot:* https://app.hubspot.com/contacts/{{ $json.portal_id }}/contact/{{ $json.contact_id }}\n*Action required:* Gmail draft is ready for your review.",
+        "otherOptions": {}
+      }
+    },
+    {
+      "id": "30e97f1d-88ae-492f-955d-acf6af4751a4",
+      "name": "Slack — #account-management",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        3760,
+        300
+      ],
+      "description": "Notifies #account-management that a new email has been triaged. Includes HubSpot contact link and reminder that the Gmail draft needs review.",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "DEMO_SLACK_OAUTH",
+          "name": "Slack OAuth2"
+        }
+      },
+      "continueOnFail": true,
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "channel": "#account-management",
+        "text": "=:email: *New client email triaged*\n*From:* {{ $json.sender_name }} <{{ $json.sender_email }}>\n*Category:* {{ $json.category }} | *Priority:* {{ $json.priority }}\n*Summary:* {{ $json.summary }}\n*HubSpot:* https://app.hubspot.com/contacts/{{ $json.portal_id }}/contact/{{ $json.contact_id }}\n*Action required:* Gmail draft is ready for your review.",
+        "otherOptions": {}
+      }
+    },
+    {
+      "id": "9e965854-479d-4ffa-9908-66d149ec5727",
+      "name": "Slack — #admin",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        3760,
+        440
+      ],
+      "description": "Notifies #admin that a new email has been triaged. Includes HubSpot contact link and reminder that the Gmail draft needs review.",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "DEMO_SLACK_OAUTH",
+          "name": "Slack OAuth2"
+        }
+      },
+      "continueOnFail": true,
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "channel": "#admin",
+        "text": "=:email: *New client email triaged*\n*From:* {{ $json.sender_name }} <{{ $json.sender_email }}>\n*Category:* {{ $json.category }} | *Priority:* {{ $json.priority }}\n*Summary:* {{ $json.summary }}\n*HubSpot:* https://app.hubspot.com/contacts/{{ $json.portal_id }}/contact/{{ $json.contact_id }}\n*Action required:* Gmail draft is ready for your review.",
+        "otherOptions": {}
+      }
+    }
+  ],
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Categorize Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Categorize Email": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Is New Inquiry?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Parse Error — Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is New Inquiry?": {
+      "main": [
+        [
+          {
+            "node": "Get Services Overview Doc",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Select Doc by Category",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Services Overview Doc": {
+      "main": [
+        [
+          {
+            "node": "Merge Doc Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Doc by Category": {
+      "main": [
+        [
+          {
+            "node": "Get Category Doc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Category Doc": {
+      "main": [
+        [
+          {
+            "node": "Merge Doc Paths",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Doc Paths": {
+      "main": [
+        [
+          {
+            "node": "Prepare Doc Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Doc Content": {
+      "main": [
+        [
+          {
+            "node": "Draft Email Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Draft Email Response": {
+      "main": [
+        [
+          {
+            "node": "Extract Draft Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Draft Text": {
+      "main": [
+        [
+          {
+            "node": "Create Gmail Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Gmail Draft": {
+      "main": [
+        [
+          {
+            "node": "HubSpot Search Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot Search Contact": {
+      "main": [
+        [
+          {
+            "node": "Extract Contact ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Contact ID": {
+      "main": [
+        [
+          {
+            "node": "Contact Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contact Exists?": {
+      "main": [
+        [
+          {
+            "node": "Update HubSpot Contact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create HubSpot Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update HubSpot Contact": {
+      "main": [
+        [
+          {
+            "node": "Create Note — Existing Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Note — Existing Contact": {
+      "main": [
+        [
+          {
+            "node": "Merge HubSpot Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create HubSpot Contact": {
+      "main": [
+        [
+          {
+            "node": "Create Note — New Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Note — New Contact": {
+      "main": [
+        [
+          {
+            "node": "Merge HubSpot Paths",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge HubSpot Paths": {
+      "main": [
+        [
+          {
+            "node": "Route to Slack Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route to Slack Channel": {
+      "main": [
+        [
+          {
+            "node": "Slack — #sales",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack — #account-management",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack — #admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "tags": [
+    {
+      "name": "portfolio"
+    },
+    {
+      "name": "email-triage"
+    },
+    {
+      "name": "apex-demo"
+    }
+  ],
+  "pinData": {}
+}
