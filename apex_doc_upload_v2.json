@@ -1,45 +1,38 @@
 {
-  "name": "Apex Operations \u2014 Document Upload (v2 Demo)",
+  "name": "Apex Operations — Document Upload (v2 Demo)",
   "nodes": [
     {
-      "id": "9e14a84e-ffb9-47e1-96a3-d152b601a9c0",
-      "name": "Receive Document Upload",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
-      "position": [
-        -300,
-        100
-      ],
       "parameters": {
         "httpMethod": "POST",
         "path": "upload-document",
         "responseMode": "responseNode",
         "options": {}
-      }
+      },
+      "id": "f7dce7c2-a1d8-43a5-91f5-d735e551cb10",
+      "name": "Receive Document Upload",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        112,
+        352
+      ],
+      "webhookId": "97999f4e-bc3d-4e88-800d-18d1d6c02540"
     },
     {
-      "id": "7763f513-8d22-49c3-ac09-7be8b41a15d2",
+      "parameters": {
+        "jsCode": "// ── Shared secret authentication ──────────────────────────────\n// Check that the request includes the correct X-Upload-Secret header.\n// This matches the secret sent by the HTML form and rejects anything else.\nconst providedSecret = $input.first().json.headers?.['x-upload-secret'] || \n                       $input.first().json.headers?.['X-Upload-Secret'] || '';\n// ⚠️ Replace UPLOAD_SECRET_HERE with your actual secret string\n// This must match the UPLOAD_SECRET value in upload_form.html\nconst expectedSecret = '3f8a2d1e9c7b4f6a0e5d2c8b1a7f3e9d2c6b4a8f1e5d3c7b0a9f2e6d4c8b3a1';\n\nif (expectedSecret && providedSecret !== expectedSecret) {\n  // Return an error item that the Upload Valid? IF node will catch\n  return [{ json: { error: true, message: 'Unauthorized: invalid or missing upload secret.' } }];\n}\n\nconst body = $input.first().json.body || $input.first().json;\nconst binaryData = $input.first().binary || {};\n\nconst category = body.category || '';\nconst description = body.description || '';\nconst uploaderName = body.uploader_name || 'Unknown';\nconst validCategories = ['services', 'billing', 'faq', 'compliance', 'vendor', 'other'];\n\nif (!validCategories.includes(category)) {\n  throw new Error('INVALID_CATEGORY: ' + category);\n}\n\nconst fileKey = Object.keys(binaryData)[0];\nif (!fileKey) throw new Error('NO_FILE: No file found in upload');\n\nconst fileName = binaryData[fileKey].fileName || 'upload';\nconst mimeType = binaryData[fileKey].mimeType || '';\nconst allowedMimes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];\nif (!allowedMimes.includes(mimeType)) throw new Error('INVALID_FILE_TYPE: ' + mimeType);\n\nreturn [{ json: { category, description, uploader_name: uploaderName, file_key: fileKey, file_name: fileName, mime_type: mimeType, timestamp: new Date().toISOString() }, binary: binaryData }];"
+      },
+      "id": "5cf1b21a-f3e5-46a2-894f-7face89f7ff9",
       "name": "Validate Upload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -50,
-        100
+        352,
+        352
       ],
-      "continueOnFail": true,
-      "parameters": {
-        "jsCode": "// \u2500\u2500 Shared secret authentication \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n// Check that the request includes the correct X-Upload-Secret header.\n// This matches the secret sent by the HTML form and rejects anything else.\nconst providedSecret = $input.first().json.headers?.['x-upload-secret'] || \n                       $input.first().json.headers?.['X-Upload-Secret'] || '';\n// \u26a0\ufe0f Replace UPLOAD_SECRET_HERE with your actual secret string\n// This must match the UPLOAD_SECRET value in upload_form.html\nconst expectedSecret = 'UPLOAD_SECRET_HERE';\n\nif (expectedSecret && providedSecret !== expectedSecret) {\n  // Return an error item that the Upload Valid? IF node will catch\n  return [{ json: { error: true, message: 'Unauthorized: invalid or missing upload secret.' } }];\n}\n\nconst body = $input.first().json.body || $input.first().json;\nconst binaryData = $input.first().binary || {};\n\nconst category = body.category || '';\nconst description = body.description || '';\nconst uploaderName = body.uploader_name || 'Unknown';\nconst validCategories = ['services', 'billing', 'faq', 'compliance', 'vendor', 'other'];\n\nif (!validCategories.includes(category)) {\n  throw new Error('INVALID_CATEGORY: ' + category);\n}\n\nconst fileKey = Object.keys(binaryData)[0];\nif (!fileKey) throw new Error('NO_FILE: No file found in upload');\n\nconst fileName = binaryData[fileKey].fileName || 'upload';\nconst mimeType = binaryData[fileKey].mimeType || '';\nconst allowedMimes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];\nif (!allowedMimes.includes(mimeType)) throw new Error('INVALID_FILE_TYPE: ' + mimeType);\n\nreturn [{ json: { category, description, uploader_name: uploaderName, file_key: fileKey, file_name: fileName, mime_type: mimeType, timestamp: new Date().toISOString() }, binary: binaryData }];"
-      }
+      "continueOnFail": true
     },
     {
-      "id": "89b41203-6301-41a4-bb32-9d4161b3a404",
-      "name": "Upload Valid?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
-      "position": [
-        200,
-        100
-      ],
       "parameters": {
         "conditions": {
           "string": [
@@ -49,137 +42,209 @@
             }
           ]
         }
-      }
+      },
+      "id": "9d9789b4-3747-4841-9ce4-5dd575615ebe",
+      "name": "Upload Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        608,
+        352
+      ]
     },
     {
-      "id": "8878c755-f6e7-4806-bd60-c8b955c8fd05",
-      "name": "Upload to Google Drive",
-      "type": "n8n-nodes-base.googleDrive",
-      "typeVersion": 3,
-      "position": [
-        450,
-        0
-      ],
-      "credentials": {
-        "googleDriveOAuth2Api": {
-          "id": "DEMO_GDRIVE_OAUTH",
-          "name": "Google Drive OAuth2"
-        }
-      },
       "parameters": {
-        "operation": "upload",
+        "inputDataFieldName": "file",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
         "folderId": {
           "__rl": true,
           "value": "13LPG5a-EBYRlxurpI1b0P_1TsAOE5CCn",
           "mode": "id"
         },
-        "fileName": "={{ $json.file_name }}",
-        "binaryPropertyName": "={{ $json.file_key }}",
         "options": {}
+      },
+      "id": "a7b34670-ca61-43b4-b2cf-bfcf44671f59",
+      "name": "Upload to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        864,
+        256
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "juA82BWVrkGVW3Ks",
+          "name": "Google Drive account"
+        }
       }
     },
     {
-      "id": "0e2ee083-a323-498f-a4ba-fc61df888f9b",
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "admin"
+        },
+        "text": "=New document uploaded to knowledge base File: {{ $('Validate Upload').item.json.file_name }} Category: {{ $('Validate Upload').item.json.category }} Description: {{ $('Validate Upload').item.json.description }} Uploaded by: {{ $('Validate Upload').item.json.uploader_name }} Time: {{ $('Validate Upload').item.json.timestamp }} Drive link: {{ $json.webViewLink }}",
+        "otherOptions": {}
+      },
+      "id": "866e45e9-227f-49f2-acb8-cf0a703ec742",
       "name": "Slack Upload Confirmation",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [
-        700,
-        0
+        1104,
+        256
       ],
-      "continueOnFail": true,
+      "webhookId": "1ab1a4ee-9670-402f-919c-f3c800c3196f",
       "credentials": {
-        "slackApi": {
-          "id": "DEMO_SLACK_OAUTH",
-          "name": "Slack OAuth2"
+        "slackOAuth2Api": {
+          "id": "ksokpfdGCUUDzJ8b",
+          "name": "Slack account"
         }
       },
-      "parameters": {
-        "select": "channel",
-        "channelId": "#admin",
-        "text": ":page_facing_up: *New document uploaded to knowledge base*\\n*File:* {{ $('Validate Upload').item.json.file_name }}\\n*Category:* {{ $('Validate Upload').item.json.category }}\\n*Description:* {{ $('Validate Upload').item.json.description }}\\n*Uploaded by:* {{ $('Validate Upload').item.json.uploader_name }}\\n*Time:* {{ $('Validate Upload').item.json.timestamp }}\\n*Drive link:* {{ $json.webViewLink }}"
-      }
+      "continueOnFail": true
     },
     {
-      "id": "7594e7d9-b378-42b5-b1d2-f20c2e38c9ec",
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": true,\n  \"message\": \"Document uploaded successfully.\"\n}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, X-Upload-Secret"
+              }
+            ]
+          }
+        }
+      },
+      "id": "c91dd541-69ef-4408-b946-bc2bd238f07e",
       "name": "Respond Success",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        950,
-        0
-      ],
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "{\n  \"success\": true,\n  \"message\": \"Document uploaded successfully.\",\n  \"file_name\": \"{{ $('Validate Upload').item.json.file_name }}\"\n}",
-        "options": {
-          "responseCode": 200
-        }
-      }
+        1360,
+        256
+      ]
     },
     {
-      "id": "58aedc01-a6f0-4160-a338-d5aaad542932",
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": false,\n  \"message\": \"Upload failed. Please check your file type and form fields.\"\n}",
+        "options": {
+          "responseCode": 400,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, X-Upload-Secret"
+              }
+            ]
+          }
+        }
+      },
+      "id": "7972af7b-ff32-4aa3-86aa-0521962d8cb3",
       "name": "Respond Error",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        450,
-        200
-      ],
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "{\n  \"success\": false,\n  \"message\": \"{{ $json.message }}\"\n}",
-        "options": {
-          "responseCode": 400
-        }
-      }
+        944,
+        448
+      ]
     },
     {
-      "id": "47f8fd91-47df-418a-89f9-8493715deecc",
+      "parameters": {
+        "content": "### 📄 Apex — Document Upload (v2)\nThis workflow receives files from the external HTML form at /upload-document, validates them, uploads to Google Drive, and confirms via Slack.\n\n**Webhook URL Format:**\nhttps://YOURINSTANCE.app.n8n.cloud/webhook/upload-document",
+        "height": 180,
+        "width": 350
+      },
+      "id": "078e9011-f37f-446c-835b-0805208cab89",
       "name": "Overview Sticky",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -400,
-        -250
-      ],
-      "parameters": {
-        "width": 350,
-        "height": 180,
-        "content": "### \ud83d\udcc4 Apex \u2014 Document Upload (v2)\nThis workflow receives files from the external HTML form at /upload-document, validates them, uploads to Google Drive, and confirms via Slack.\n\n**Webhook URL Format:**\nhttps://YOURINSTANCE.app.n8n.cloud/webhook/upload-document"
-      }
+        0,
+        0
+      ]
     },
     {
-      "id": "6ebf4a13-bfd1-4833-bb1d-d7827d81418b",
+      "parameters": {
+        "content": "### SETUP CHECKLIST\n1. Copy webhook URL from Webhook node and paste into upload_form.html `WEBHOOK_URL` variable.\n2. Configure Google Drive OAuth2 credential.\n3. Invite Slack bot to #admin.\n4. Activate workflow BEFORE testing the form.",
+        "height": 200,
+        "width": 350
+      },
+      "id": "456a8419-8588-4190-b90d-00ecccb50d37",
       "name": "Setup Sticky",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -400,
-        -50
-      ],
-      "parameters": {
-        "width": 350,
-        "height": 200,
-        "content": "### SETUP CHECKLIST\n1. Copy webhook URL from Webhook node and paste into upload_form.html `WEBHOOK_URL` variable.\n2. Configure Google Drive OAuth2 credential.\n3. Invite Slack bot to #admin.\n4. Activate workflow BEFORE testing the form."
-      }
+        0,
+        208
+      ]
     },
     {
-      "id": "2c36743e-19ba-452e-b8e8-2eb4e60134dd",
+      "parameters": {
+        "content": "### ⚠️ Security Note\nThis webhook has no authentication by default.\n\nFor production, add a shared secret header check in the Validate Upload node, or enable n8n webhook authentication in settings.",
+        "height": 180,
+        "width": 350
+      },
+      "id": "a7d27feb-c9c5-4256-8dc8-80dacbef532e",
       "name": "Security Sticky",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        800,
-        -250
-      ],
+        1200,
+        0
+      ]
+    },
+    {
       "parameters": {
-        "width": 350,
-        "height": 180,
-        "content": "### \u26a0\ufe0f Security Note\nThis webhook has no authentication by default.\n\nFor production, add a shared secret header check in the Validate Upload node, or enable n8n webhook authentication in settings."
-      }
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Document uploaded successfully.\",\n  \"file_name\": \"{{ $('Validate Upload').item.json.file_name }}\"\n}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, X-Upload-Secret"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1568,
+        256
+      ],
+      "id": "1c3cbf18-3676-4250-9bb0-95e35d114a97",
+      "name": "Respond to Webhook"
     }
   ],
+  "pinData": {},
   "connections": {
     "Receive Document Upload": {
       "main": [
@@ -242,13 +307,31 @@
           }
         ]
       ]
+    },
+    "Respond Success": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
   },
+  "versionId": "e0c16a76-5ce9-40ba-a436-cd1bb7196322",
   "meta": {
-    "instanceId": "superagent-instance"
-  }
+    "templateCredsSetupCompleted": true,
+    "instanceId": "073025d91f98beae4652fe50c9a704be20279100d039029d4b599840f6d98e37"
+  },
+  "nodeGroups": [],
+  "id": "tFkBzmVzNd81YTHN",
+  "tags": []
 }
