@@ -313,8 +313,15 @@ Set `WEBHOOK_URL` in `upload_form.html` to `http://localhost:5678/webhook/upload
 | Vendor Management | `vendor` |
 | Other | `other` |
 
-### Security Note
-The webhook endpoint has no authentication by default — suitable for internal use on a private network. For public-facing deployments, add a shared secret header check in the Validate Upload node (n8n) or Flask route (Python).
+### Security
+The webhook is protected by a **shared secret header check**. Every request from the form includes an `X-Upload-Secret` header. The server rejects anything that doesn't match.
+
+**To configure:**
+1. Generate a secret: `python -c "import secrets; print(secrets.token_hex(32))"`
+2. Add `UPLOAD_SECRET=<your-secret>` to your `.env` file (Python) or n8n Environment Variables
+3. Replace `UPLOAD_SECRET_HERE` in `upload_form.html` with the same value
+
+**For full production security:** host the form behind an identity provider (Cloudflare Access, Google IAP) so only authenticated users can load the page at all.
 
 
 

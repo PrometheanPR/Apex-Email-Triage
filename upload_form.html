@@ -146,6 +146,12 @@
     </div>
 
     <script>
+        // ── Configuration ──────────────────────────────────────────────
+        // Replace with your n8n webhook URL or Python server URL.
+        // n8n example:    'https://yourname.app.n8n.cloud/webhook/upload-document'
+        // Python example: 'http://localhost:5678/webhook/upload-document'
+        const WEBHOOK_URL = 'YOUR_WEBHOOK_URL_HERE';
+
         const form = document.getElementById('upload-form');
         const submitBtn = document.getElementById('submit-btn');
         const messageBox = document.getElementById('message-box');
@@ -163,8 +169,16 @@
             const formData = new FormData(form);
 
             try {
-                const response = await fetch('/webhook/upload-document', {
+                // SECURITY: Send the shared secret in a custom header.
+                // Replace UPLOAD_SECRET_HERE with your actual secret string.
+                // This must match the UPLOAD_SECRET env var on the server.
+                const UPLOAD_SECRET = 'UPLOAD_SECRET_HERE';
+
+                const response = await fetch(WEBHOOK_URL, {
                     method: 'POST',
+                    headers: {
+                        'X-Upload-Secret': UPLOAD_SECRET
+                    },
                     body: formData
                 });
 

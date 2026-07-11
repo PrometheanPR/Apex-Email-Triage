@@ -22,6 +22,9 @@ Copy your `.env` configuration or ensure the following environment variables are
 - GOOGLE_DRIVE_FOLDER_ID: Folder ID where documents will be uploaded (default: 13LPG5a-EBYRlxurpI1b0P_1TsAOE5CCn).
 - FLASK_SECRET_KEY: Secret key for Flask session security.
 - PORT: Web server port (default: 5678).
+- UPLOAD_SECRET: Shared secret string sent by the form in the X-Upload-Secret header.
+  Set this to any long random string (e.g. output of: python -c "import secrets; print(secrets.token_hex(32))")
+  Leave blank to disable the check (not recommended for public deployments).
 
 GOOGLE AUTHENTICATION
 ---------------------
@@ -79,6 +82,11 @@ DEFAULT_FOLDER_ID = "13LPG5a-EBYRlxurpI1b0P_1TsAOE5CCn"
 GOOGLE_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 ALLOWED_CATEGORIES = {"services", "billing", "faq", "compliance", "vendor", "other"}
 ALLOWED_EXTENSIONS = {".pdf", ".docx"}
+
+# Shared secret for webhook authentication.
+# The HTML form sends this in the X-Upload-Secret header.
+# Must match UPLOAD_SECRET in your .env file.
+UPLOAD_SECRET = os.environ.get("UPLOAD_SECRET", "")
 
 
 # ── Google OAuth Helper ────────────────────────────────────────
