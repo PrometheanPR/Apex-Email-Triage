@@ -236,8 +236,87 @@ Replace these with your own Google Drive document IDs when adapting the template
 
 | Version | Description |
 |---------|-------------|
-| v1 (current) | Core email triage — classify, draft, log to HubSpot, notify Slack |
-| v2 (planned) | Add document upload form — upload new docs to the Google Drive folder via a web form, making the knowledge base self-service |
+| v1 | Core email triage — classify, draft, log to HubSpot, notify Slack |
+| v2 | Document upload form — upload new docs to Google Drive via a branded web form |
+---
+
+## Version 2 — Document Upload Form
+
+v2 adds a self-service web form that lets team members upload new documents directly into the Google Drive knowledge base, without needing Drive access.
+
+### New Files
+
+| File | Purpose |
+|------|---------|
+| `apex_doc_upload_v2.json` | n8n webhook workflow — receives uploads, validates, stores to Drive, notifies Slack |
+| `apex_doc_upload_v2.py` | Python Flask server — same logic, serves the form and handles uploads |
+| `upload_form.html` | Branded HTML form — posts to either the n8n webhook or the Python server |
+
+### How It Works
+
+```
+User fills out upload_form.html
+    │  multipart/form-data POST
+    ▼
+Webhook (n8n) or Flask route (Python)
+    │
+    ▼
+Validate: category, file type (PDF/DOCX), file present
+    │
+    ├── Invalid → 400 JSON error → form shows red error message
+    │
+    ▼
+Upload file to Google Drive folder
+    │
+    ▼
+Slack #admin notification (file name, category, description, uploader, Drive link)
+    │
+    ▼
+200 JSON success → form shows green confirmation
+```
+
+### Option A — n8n Setup
+
+1. Import `apex_doc_upload_v2.json` via Workflows → Import
+2. Open the **Receive Document Upload** (Webhook) node and copy the Production webhook URL
+3. Open `upload_form.html` and replace `YOUR_WEBHOOK_URL_HERE` with the copied URL
+4. Configure Google Drive OAuth2 and Slack OAuth2 credentials
+5. **Activate the workflow** before testing — webhook URLs only work when active
+6. Open `upload_form.html` in a browser and test with a sample PDF
+
+### Option B — Python Setup
+
+```bash
+# Install additional dependency
+pip install flask
+
+# Run the server (serves form at / and webhook at /webhook/upload-document)
+python apex_doc_upload_v2.py
+
+# Open your browser
+open http://localhost:5678
+```
+
+Set `WEBHOOK_URL` in `upload_form.html` to `http://localhost:5678/webhook/upload-document` for local testing.
+
+### Accepted File Types
+- PDF (`.pdf`)
+- Word Document (`.docx`)
+
+### Document Categories
+| Form Label | Internal Value |
+|------------|---------------|
+| Services Overview | `services` |
+| Billing & Admin | `billing` |
+| Client Support FAQ | `faq` |
+| Compliance SOP | `compliance` |
+| Vendor Management | `vendor` |
+| Other | `other` |
+
+### Security Note
+The webhook endpoint has no authentication by default — suitable for internal use on a private network. For public-facing deployments, add a shared secret header check in the Validate Upload node (n8n) or Flask route (Python).
+
+
 
 ---
 
