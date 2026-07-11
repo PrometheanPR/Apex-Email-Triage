@@ -1,13 +1,14 @@
-# Apex Operations — AI Email Triage (Demo)
+# AI Email Triage — Automation Template
 
-**A portfolio demonstration by Promethean PR & Automation**
-*Built with n8n · Python · OpenAI GPT-4o · Gmail · Google Drive · HubSpot · Slack*
+**Built with n8n · Python · OpenAI GPT-4o · Gmail · Google Drive · HubSpot · Slack**
+
+*An automation template for service-based businesses that receive high volumes of client email.*
 
 ---
 
-## What This Project Does
+## What This Template Does
 
-Automatically triages incoming client emails for a B2B operations consulting firm.
+Automatically triages incoming client emails using AI.
 For every new email received:
 
 1. **Classifies** it into a category (new inquiry, client support, billing, escalation) and priority level using GPT-4o
@@ -17,6 +18,19 @@ For every new email received:
 5. **Notifies** the correct Slack channel with a triage summary and HubSpot link
 
 > ⚠️ **No email is ever sent automatically.** Every draft requires a human to review and send manually.
+
+---
+
+## Who This Is For
+
+This template is designed for **service-based businesses** that:
+
+- Receive a steady volume of client emails across multiple categories (inquiries, support, billing, escalations)
+- Have internal documentation (SOPs, FAQs, service overviews) they want to use as the basis for replies
+- Use HubSpot as their CRM and Slack for internal team communication
+- Want AI assistance with drafting without removing humans from the sending decision
+
+Typical use cases: consulting firms, agencies, managed service providers, professional services teams.
 
 ---
 
@@ -79,7 +93,7 @@ Services Overview Doc     Category Doc (billing/FAQ)
 - HubSpot Private App (see HubSpot setup below)
 - Slack bot invited to `#sales`, `#account-management`, `#admin`
 - OpenAI API key with `gpt-4o` access
-- Google Drive folder with internal docs (IDs pre-configured in workflow)
+- Google Drive folder with internal docs (IDs configured in workflow)
 
 ### Import Steps
 1. Open your n8n instance
@@ -117,8 +131,8 @@ Services Overview Doc     Category Doc (billing/FAQ)
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/YOUR_USERNAME/apex-email-triage.git
-cd apex-email-triage
+git clone https://github.com/PrometheanPR/Apex-Email-Triage.git
+cd Apex-Email-Triage
 
 # 2. Install dependencies
 pip install openai google-auth google-auth-oauthlib google-api-python-client \
@@ -173,7 +187,7 @@ HUBSPOT_PORTAL_ID=12345678
 
 ## Google Drive Document IDs
 
-The workflow references these internal document IDs for Apex Operations (demo):
+The workflow references these internal documents (pre-configured for this template):
 
 | Document | ID |
 |----------|----|
@@ -182,7 +196,7 @@ The workflow references these internal document IDs for Apex Operations (demo):
 | Client Support FAQ | `1thH0AsJQaDpaTo9JgNhXbN6YUlrYZk6WKcu5WFm4aJ4` |
 | Internal Docs Folder | `13LPG5a-EBYRlxurpI1b0P_1TsAOE5CCn` |
 
-For a real client deployment, replace these with the client's actual Google Drive document IDs.
+Replace these with your own Google Drive document IDs when adapting the template.
 
 ---
 
@@ -207,19 +221,24 @@ For a real client deployment, replace these with the client's actual Google Driv
 
 ---
 
-## Customising for a Real Client
+## Customising for a Project
 
-1. Replace all Google Drive document IDs with the client's actual files
-2. Update the Gmail label name if the client uses a different label
-3. Adjust Slack channel names to match the client's workspace
-4. Update `HUBSPOT_PORTAL_ID` to the client's portal ID
+1. Replace all Google Drive document IDs with your project's actual files
+2. Update the Gmail label name if the project uses a different label
+3. Adjust Slack channel names to match the workspace
+4. Update `HUBSPOT_PORTAL_ID` to the correct portal ID
 5. Swap all `DEMO_` credential placeholders for real values
 6. Test with a single email before activating for production
 
 ---
 
-## About
+## Versioning
 
-Built by **Tom Blackstone** · [Promethean PR & Automation](mailto:tom@prometheanpr.com)
+| Version | Description |
+|---------|-------------|
+| v1 (current) | Core email triage — classify, draft, log to HubSpot, notify Slack |
+| v2 (planned) | Add document upload form — upload new docs to the Google Drive folder via a web form, making the knowledge base self-service |
 
-This is a portfolio demonstration workflow. The fictional client (Apex Operations Consulting) and all document IDs are for demo purposes only.
+---
+
+*This template is maintained by [Promethean PR & Automation](mailto:tom@prometheanpr.com)*
