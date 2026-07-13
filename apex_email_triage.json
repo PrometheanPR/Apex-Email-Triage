@@ -444,33 +444,13 @@
           ]
         },
         "sendBody": true,
-        "contentType": "json",
-        "body": {
-          "filterGroups": [
-            {
-              "filters": [
-                {
-                  "propertyName": "email",
-                  "operator": "EQ",
-                  "value": "={{ $json.sender_email }}"
-                }
-              ]
-            }
-          ],
-          "properties": [
-            "email",
-            "firstname",
-            "lastname",
-            "hs_object_id",
-            "last_inquiry_type"
-          ],
-          "limit": 1
-        },
         "retryOnFail": true,
         "maxTries": 2,
         "waitBetweenTries": 2000,
         "continueOnFail": true,
-        "options": {}
+        "options": {},
+        "specifyBody": "json",
+        "jsonBody": "{\"filterGroups\": [{\"filters\": [{\"propertyName\": \"email\", \"operator\": \"EQ\", \"value\": \"={{ $json.sender_email }}\"}]}], \"properties\": [\"email\", \"firstname\", \"lastname\", \"hs_object_id\", \"last_inquiry_type\"], \"limit\": 1}"
       }
     },
     {
@@ -549,16 +529,12 @@
           ]
         },
         "sendBody": true,
-        "contentType": "json",
-        "body": {
-          "properties": {
-            "last_inquiry_type": "={{ $json.category }}"
-          }
-        },
         "retryOnFail": true,
         "maxTries": 2,
         "continueOnFail": true,
-        "options": {}
+        "options": {},
+        "specifyBody": "json",
+        "jsonBody": "{\"properties\": {\"last_inquiry_type\": \"={{ $json.category }}\"}}"
       }
     },
     {
@@ -588,29 +564,12 @@
           ]
         },
         "sendBody": true,
-        "contentType": "json",
-        "body": {
-          "properties": {
-            "hs_note_body": "=AI Email Triage Log\nDate: {{ $json.timestamp }}\nFrom: {{ $json.sender_name }} <{{ $json.sender_email }}>\nCategory: {{ $json.category }} | Priority: {{ $json.priority }}\nSummary: {{ $json.summary }}\nRouted to: {{ $json.route_to }}\n\nAI Draft:\n{{ $json.draft_text }}"
-          },
-          "associations": [
-            {
-              "to": {
-                "id": "={{ $json.contact_id }}"
-              },
-              "types": [
-                {
-                  "associationCategory": "HUBSPOT_DEFINED",
-                  "associationTypeId": 202
-                }
-              ]
-            }
-          ]
-        },
         "retryOnFail": true,
         "maxTries": 2,
         "continueOnFail": true,
-        "options": {}
+        "options": {},
+        "specifyBody": "json",
+        "jsonBody": "{\"properties\": {\"hs_note_body\": \"=AI Email Triage Log\\nDate: {{ $json.timestamp }}\\nFrom: {{ $json.sender_name }} <{{ $json.sender_email }}>\\nCategory: {{ $json.category }} | Priority: {{ $json.priority }}\\nSummary: {{ $json.summary }}\\nRouted to: {{ $json.route_to }}\\n\\nAI Draft:\\n{{ $json.draft_text }}\"}, \"associations\": [{\"to\": {\"id\": \"={{ $json.contact_id }}\"}, \"types\": [{\"associationCategory\": \"HUBSPOT_DEFINED\", \"associationTypeId\": 202}]}]}"
       }
     },
     {
@@ -640,19 +599,12 @@
           ]
         },
         "sendBody": true,
-        "contentType": "json",
-        "body": {
-          "properties": {
-            "email": "={{ $json.sender_email }}",
-            "firstname": "={{ $json.sender_first_name }}",
-            "lastname": "={{ $json.sender_last_name }}",
-            "last_inquiry_type": "={{ $json.category }}"
-          }
-        },
         "retryOnFail": true,
         "maxTries": 2,
         "continueOnFail": true,
-        "options": {}
+        "options": {},
+        "specifyBody": "json",
+        "jsonBody": "{\"properties\": {\"email\": \"={{ $json.sender_email }}\", \"firstname\": \"={{ $json.sender_first_name }}\", \"lastname\": \"={{ $json.sender_last_name }}\", \"last_inquiry_type\": \"={{ $json.category }}\"}}"
       }
     },
     {
@@ -682,29 +634,12 @@
           ]
         },
         "sendBody": true,
-        "contentType": "json",
-        "body": {
-          "properties": {
-            "hs_note_body": "=AI Email Triage Log\nDate: {{ $json.timestamp }}\nFrom: {{ $json.sender_name }} <{{ $json.sender_email }}>\nCategory: {{ $json.category }} | Priority: {{ $json.priority }}\nSummary: {{ $json.summary }}\nRouted to: {{ $json.route_to }}\n\nAI Draft:\n{{ $json.draft_text }}"
-          },
-          "associations": [
-            {
-              "to": {
-                "id": "={{ $json.id }}"
-              },
-              "types": [
-                {
-                  "associationCategory": "HUBSPOT_DEFINED",
-                  "associationTypeId": 202
-                }
-              ]
-            }
-          ]
-        },
         "retryOnFail": true,
         "maxTries": 2,
         "continueOnFail": true,
-        "options": {}
+        "options": {},
+        "specifyBody": "json",
+        "jsonBody": "{\"properties\": {\"hs_note_body\": \"=AI Email Triage Log\\nDate: {{ $json.timestamp }}\\nFrom: {{ $json.sender_name }} <{{ $json.sender_email }}>\\nCategory: {{ $json.category }} | Priority: {{ $json.priority }}\\nSummary: {{ $json.summary }}\\nRouted to: {{ $json.route_to }}\\n\\nAI Draft:\\n{{ $json.draft_text }}\"}, \"associations\": [{\"to\": {\"id\": \"={{ $json.id }}\"}, \"types\": [{\"associationCategory\": \"HUBSPOT_DEFINED\", \"associationTypeId\": 202}]}]}"
       }
     },
     {
