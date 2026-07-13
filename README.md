@@ -47,41 +47,7 @@ Typical use cases: consulting firms, agencies, managed service providers, profes
 
 ## Architecture
 
-```
-Gmail (poll every 5 min)
-    │
-    ▼
-GPT-4o Categorization
-    │  category / priority / summary / route_to
-    ▼
-IF new_inquiry ──────────────────┐
-    │                            │
-    ▼                            ▼
-Services Overview Doc     Category Doc (billing/FAQ)
-    │                            │
-    └──────────┬─────────────────┘
-               ▼
-        Draft LLM (GPT-4o)
-               │
-               ▼
-        Gmail → Create Draft (NOT Send)
-               │
-               ▼
-        HubSpot Search Contact
-               │
-        ┌──────┴──────┐
-        ▼             ▼
-   Exists?         New contact?
-   Update +        Create +
-   Log Note        Log Note
-        │             │
-        └──────┬───────┘
-               ▼
-        Slack Switch
-     ┌────┬────┬─────┐
-     ▼    ▼    ▼
-  #sales #acct #admin
-```
+![AI Email Triage Workflow](https://media.base44.com/images/public/6a4fa10c6b87171b7ac8d5f0/ad4fb8283_generated_image.png)
 
 ---
 
