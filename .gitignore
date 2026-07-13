@@ -19,3 +19,13 @@ env/
 # IDE
 .vscode/
 .idea/
+
+# Atlas internal workspace — never commit to client repos
+.agents/
+base44/
+entities/
+functions/
+incoming_files/
+workflow_diagram.png
+doc_ingestion_diagram.png
+*.pickle
