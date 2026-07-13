@@ -40,14 +40,110 @@ Typical use cases: consulting firms, agencies, managed service providers, profes
 |------|---------|
 | `apex_email_triage.json` | Importable n8n workflow — drag into n8n via Workflows → Import |
 | `apex_email_triage.py` | Standalone Python equivalent — runs without n8n |
+| `apex_doc_upload.json` | n8n webhook workflow for the Document Ingestion Portal |
+| `apex_doc_upload.py` | Python Flask server equivalent for the Document Ingestion Portal |
+| `upload_form.html` | Branded HTML form for document uploads |
 | `.env.example` | Template for environment variables (copy to `.env`, never commit) |
 | `README.md` | This file |
 
 ---
 
-## Architecture
+## Architecture — AI Email Triage
 
-![AI Email Triage Workflow](./workflow_diagram.png)
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  TRIGGER                                                        │
+│  Gmail Trigger                                                  │
+│  Polls every 5 minutes for emails labeled "Client Incoming"     │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  AI CATEGORIZE EMAIL                (GPT-4o via LangChain)     │
+│  Reads subject + body. Returns:                                 │
+│    • category   → new_inquiry / support / billing / escalation  │
+│    • priority   → high / medium / low                           │
+│    • summary    → one-sentence description                      │
+│    • route_to   → sales / account-management / admin           │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  PARSE AI RESPONSE                       (Code node)           │
+│  Validates AI JSON output. Extracts:                            │
+│    • sender_email, sender_name, subject                         │
+│    • category, priority, summary, route_to                      │
+│  If malformed → routes to Slack #admin alert and stops          │
+└──────────────┬────────────────────────────┬─────────────────────┘
+               │                            │
+        new_inquiry?                  all other categories
+               │                            │
+               ▼                            ▼
+┌──────────────────────┐     ┌──────────────────────────────────┐
+│  GET SERVICES DOC    │     │  GET CATEGORY DOC                │
+│  (Google Drive node) │     │  (Google Drive node)             │
+│  Fetches Services    │     │  Fetches billing SOP, FAQ,       │
+│  Overview document   │     │  or escalation guide based       │
+│  as context for      │     │  on category                     │
+│  the draft           │     │                                  │
+└──────────┬───────────┘     └──────────────┬───────────────────┘
+           │                                │
+           └──────────────┬─────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  DRAFT EMAIL RESPONSE               (GPT-4o via LangChain)     │
+│  Writes a professional reply grounded in the retrieved doc.     │
+│  Output: draft_subject, draft_text                              │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  CREATE GMAIL DRAFT                      (Gmail node)          │
+│  Saves the reply to Gmail Drafts.                               │
+│  ⚠ NEVER sends automatically — human must review and send      │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  SEARCH HUBSPOT CONTACT                  (HTTP Request)        │
+│  Looks up the sender's email address in HubSpot CRM            │
+└──────────────┬────────────────────────────┬─────────────────────┘
+               │                            │
+        Contact found                  No contact found
+               │                            │
+               ▼                            ▼
+┌──────────────────────┐     ┌──────────────────────────────────┐
+│  UPDATE CONTACT      │     │  CREATE HUBSPOT CONTACT          │
+│  (HTTP Request)      │     │  (HTTP Request)                  │
+│  Updates last_inquiry│     │  Creates new contact with        │
+│  _type field         │     │  email, name, inquiry type       │
+│                      │     │                                  │
+│  CREATE NOTE —       │     │  CREATE NOTE — NEW CONTACT       │
+│  EXISTING CONTACT    │     │  (HTTP Request)                  │
+│  (HTTP Request)      │     │  Logs AI summary + category      │
+│  Logs AI summary +   │     │  to the new contact's timeline   │
+│  category to timeline│     │                                  │
+└──────────┬───────────┘     └──────────────┬───────────────────┘
+           │                                │
+           └──────────────┬─────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  SLACK ROUTER                           (Switch node)          │
+│  Routes notification to the correct channel based on route_to  │
+└──────────┬──────────────────┬──────────────────┬───────────────┘
+           │                  │                  │
+           ▼                  ▼                  ▼
+    ┌─────────────┐   ┌──────────────┐   ┌─────────────┐
+    │  #sales     │   │  #account-   │   │  #admin     │
+    │  Slack node │   │  management  │   │  Slack node │
+    │             │   │  Slack node  │   │             │
+    │  New inquiry│   │              │   │  Billing,   │
+    │  alerts     │   │  Support &   │   │  escalation │
+    │             │   │  follow-up   │   │  & errors   │
+    └─────────────┘   └──────────────┘   └─────────────┘
+```
 
 ---
 
@@ -72,8 +168,8 @@ Typical use cases: consulting firms, agencies, managed service providers, profes
 | Gmail Trigger | Gmail OAuth2 | `DEMO_GMAIL_OAUTH` |
 | Get Services Overview Doc | Google Drive OAuth2 | `DEMO_GDRIVE_OAUTH` |
 | Get Category Doc | Google Drive OAuth2 | `DEMO_GDRIVE_OAUTH` |
-| AI Categorize Email | HTTP Header Auth | `sk-DEMO-xxx...` |
-| Draft Email Response | HTTP Header Auth | `sk-DEMO-xxx...` |
+| AI Categorize Email | OpenAI (LangChain) | Select model in node |
+| Draft Email Response | OpenAI (LangChain) | Select model in node |
 | HubSpot nodes | HTTP Header Auth | `hsp_DEMO-xxx...` |
 | Slack nodes | Slack OAuth2 | `DEMO_SLACK_OAUTH` |
 
@@ -198,53 +294,83 @@ Replace these with your own Google Drive document IDs when adapting the template
 
 ---
 
-## Versioning
+## Document Ingestion Portal
 
-| Version | Description |
-|---------|-------------|
-| v1 | Core email triage — classify, draft, log to HubSpot, notify Slack |
-| v2 | Document upload form — upload new docs to Google Drive via a branded web form |
----
+The Document Ingestion Portal adds a self-service web form that lets team members upload new internal documents directly into the Google Drive knowledge base — without needing direct Drive access. Uploaded files are immediately available to the AI Email Triage workflow as reference material.
 
-## Version 2 — Document Upload Form
-
-v2 adds a self-service web form that lets team members upload new documents directly into the Google Drive knowledge base, without needing Drive access.
-
-### New Files
+### Files
 
 | File | Purpose |
 |------|---------|
-| `apex_doc_upload_v2.json` | n8n webhook workflow — receives uploads, validates, stores to Drive, notifies Slack |
-| `apex_doc_upload_v2.py` | Python Flask server — same logic, serves the form and handles uploads |
-| `upload_form.html` | Branded HTML form — posts to either the n8n webhook or the Python server |
+| `apex_doc_upload.json` | Importable n8n webhook workflow |
+| `apex_doc_upload.py` | Python Flask server — same logic, no n8n required |
+| `upload_form.html` | Branded HTML upload form |
 
-### How It Works
+### Architecture — Document Ingestion Portal
 
 ```
-User fills out upload_form.html
-    │  multipart/form-data POST
-    ▼
-Webhook (n8n) or Flask route (Python)
-    │
-    ▼
-Validate: category, file type (PDF/DOCX), file present
-    │
-    ├── Invalid → 400 JSON error → form shows red error message
-    │
-    ▼
-Upload file to Google Drive folder
-    │
-    ▼
-Slack #admin notification (file name, category, description, uploader, Drive link)
-    │
-    ▼
-200 JSON success → form shows green confirmation
+┌─────────────────────────────────────────────────────────────────┐
+│  FORM                                                           │
+│  upload_form.html (hosted on GitHub Pages or local server)      │
+│  User fills in: uploader name, document category,              │
+│  description, and selects a PDF or DOCX file                   │
+│  Form POST includes X-Upload-Secret header for authentication   │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │  multipart/form-data POST
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  RECEIVE DOCUMENT UPLOAD                 (Webhook node)        │
+│  Listens on a public HTTPS endpoint                             │
+│  Validates X-Upload-Secret header — rejects if missing/wrong   │
+│  Receives file binary + form fields                             │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  VALIDATE UPLOAD                         (Code node)           │
+│  Checks:                                                        │
+│    • File is present                                            │
+│    • File type is PDF or DOCX (rejects all others)             │
+│    • Category field is not empty                                │
+│  Sets is_valid = true / false                                   │
+└──────────────┬────────────────────────────┬─────────────────────┘
+               │                            │
+           is_valid                     not valid
+               │                            │
+               ▼                            ▼
+┌──────────────────────┐     ┌──────────────────────────────────┐
+│  UPLOAD TO           │     │  RESPOND ERROR                   │
+│  GOOGLE DRIVE        │     │  (Respond to Webhook node)       │
+│  (Google Drive node) │     │  Returns HTTP 400 with JSON      │
+│                      │     │  error message                   │
+│  Uploads file to     │     │  Form displays red error banner  │
+│  configured folder   │     │                                  │
+│  Uses category as    │     │                                  │
+│  subfolder or tag    │     │                                  │
+└──────────┬───────────┘     └──────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  SLACK UPLOAD CONFIRMATION               (Slack node)          │
+│  Posts to #admin channel with:                                  │
+│    • File name and category                                     │
+│    • Uploader name                                              │
+│    • Description                                                │
+│    • Direct Google Drive link                                   │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  RESPOND SUCCESS                 (Respond to Webhook node)     │
+│  Returns HTTP 200 with JSON success message                     │
+│  Form displays green confirmation banner                        │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Option A — n8n Setup
 
-1. Import `apex_doc_upload_v2.json` via Workflows → Import
-2. Open the **Receive Document Upload** (Webhook) node and copy the Production webhook URL
+1. Import `apex_doc_upload.json` via Workflows → Import
+2. Open the **Receive Document Upload** node and copy the Production webhook URL
 3. Open `upload_form.html` and replace `YOUR_WEBHOOK_URL_HERE` with the copied URL
 4. Configure Google Drive OAuth2 and Slack OAuth2 credentials
 5. **Activate the workflow** before testing — webhook URLs only work when active
@@ -256,11 +382,11 @@ Slack #admin notification (file name, category, description, uploader, Drive lin
 # Install additional dependency
 pip install flask
 
-# Run the server (serves form at / and webhook at /webhook/upload-document)
-python apex_doc_upload_v2.py
+# Run the server
+python apex_doc_upload.py
 
-# Open your browser
-open http://localhost:5678
+# Open your browser at:
+# http://localhost:5678
 ```
 
 Set `WEBHOOK_URL` in `upload_form.html` to `http://localhost:5678/webhook/upload-document` for local testing.
@@ -280,17 +406,24 @@ Set `WEBHOOK_URL` in `upload_form.html` to `http://localhost:5678/webhook/upload
 | Other | `other` |
 
 ### Security
-The webhook is protected by a **shared secret header check**. Every request from the form includes an `X-Upload-Secret` header. The server rejects anything that doesn't match.
+The webhook is protected by a **shared secret header** (`X-Upload-Secret`). Every request from the form includes this header. The server rejects anything that doesn't match.
 
 **To configure:**
 1. Generate a secret: `python -c "import secrets; print(secrets.token_hex(32))"`
-2. Add `UPLOAD_SECRET=<your-secret>` to your `.env` file (Python) or n8n Environment Variables
+2. Add `UPLOAD_SECRET=<your-secret>` to your `.env` file
 3. Replace `UPLOAD_SECRET_HERE` in `upload_form.html` with the same value
 
-**For full production security:** host the form behind an identity provider (Cloudflare Access, Google IAP) so only authenticated users can load the page at all.
-
-
+For full production security, host the form behind an identity provider (Cloudflare Access, Google IAP) so only authenticated users can load the page at all.
 
 ---
 
-*This template is maintained by [Promethean PR & Automation](mailto:tom@prometheanpr.com)*
+## Versioning
+
+| Version | Description |
+|---------|-------------|
+| v1 | AI Email Triage — classify, draft, log to HubSpot, notify Slack |
+| v2 | Document Ingestion Portal — upload docs to Google Drive via web form |
+
+---
+
+*This template is maintained as a neutral starting point for service-based businesses. Replace all placeholder credentials, document IDs, and channel names before production use.*
