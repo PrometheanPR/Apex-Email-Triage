@@ -102,6 +102,76 @@ For full production security, host the form behind an identity provider (Cloudfl
 
 ---
 
+---
+
+## Document Ingestion Portal
+
+The Document Ingestion Portal adds a self-service web form that lets team members upload new internal documents directly into the Google Drive knowledge base — without needing direct Drive access. Uploaded files are immediately available to the AI Email Triage workflow as reference material.
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `apex_doc_upload.json` | Importable n8n webhook workflow |
+| `apex_doc_upload.py` | Python Flask server — same logic, no n8n required |
+| `upload_form.html` | Branded HTML upload form |
+
+### Architecture — Document Ingestion Portal
+
+![Document Ingestion Portal Workflow](./doc_ingestion_diagram.png)
+
+### Option A — n8n Setup
+
+1. Import `apex_doc_upload.json` via Workflows → Import
+2. Open the **Receive Document Upload** node and copy the Production webhook URL
+3. Open `upload_form.html` and replace `YOUR_WEBHOOK_URL_HERE` with the copied URL
+4. Configure Google Drive OAuth2 and Slack OAuth2 credentials
+5. **Activate the workflow** before testing — webhook URLs only work when active
+6. Open `upload_form.html` in a browser and test with a sample PDF
+
+### Option B — Python Setup
+
+```bash
+# Install additional dependency
+pip install flask
+
+# Run the server
+python apex_doc_upload.py
+
+# Open your browser at:
+# http://localhost:5678
+```
+
+Set `WEBHOOK_URL` in `upload_form.html` to `http://localhost:5678/webhook/upload-document` for local testing.
+
+### Accepted File Types
+- PDF (`.pdf`)
+- Word Document (`.docx`)
+
+### Document Categories
+
+| Form Label | Internal Value |
+|------------|---------------|
+| Services Overview | `services` |
+| Billing & Admin | `billing` |
+| Client Support FAQ | `faq` |
+| Compliance SOP | `compliance` |
+| Vendor Management | `vendor` |
+| Other | `other` |
+
+### Security
+
+The webhook is protected by a **shared secret header** (`X-Upload-Secret`). Every request from the form includes this header. The server rejects anything that doesn't match.
+
+**To configure:**
+1. Generate a secret: `python -c "import secrets; print(secrets.token_hex(32))"`
+2. Add `UPLOAD_SECRET=<your-secret>` to your `.env` file
+3. Replace `UPLOAD_SECRET_HERE` in `upload_form.html` with the same value
+
+For full production security, host the form behind an identity provider (Cloudflare Access, Google IAP) so only authenticated users can load the page at all.
+
+---
+
 ## Versioning
 
 | Version | Description |
