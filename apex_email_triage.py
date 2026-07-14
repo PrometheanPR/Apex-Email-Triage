@@ -468,7 +468,10 @@ def _hubspot_create_note(contact_id: str, note_body: str, headers: dict):
             "https://api.hubapi.com/crm/v3/objects/notes",
             headers=headers,
             json={
-                "properties": {"hs_note_body": note_body},
+                "properties": {
+                    "hs_note_body": note_body,
+                    "hs_timestamp": int(time.time() * 1000),  # Unix ms integer — HubSpot rejects ISO strings
+                },
                 "associations": [{"to": {"id": contact_id}, "types": [
                     {"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 202}
                 ]}],
