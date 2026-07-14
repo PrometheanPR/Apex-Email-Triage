@@ -374,7 +374,7 @@
     {
       "parameters": {
         "resource": "draft",
-        "subject": "=Re: {{ $json.subject }}",
+        "subject": "=Re: {{ $('Parse AI Response').item.json.subject }}",
         "message": "={{ $json.draft_text }}",
         "options": {}
       },
