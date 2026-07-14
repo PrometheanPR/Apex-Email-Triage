@@ -166,6 +166,7 @@ def poll_gmail_for_new_emails(gmail_service) -> list[dict]:
 
         emails.append({
             "message_id": msg_stub["id"],
+            "thread_id":   msg.get("threadId", ""),
             "sender_email": _parse_email_address(headers.get("from", "")),
             "sender_name":  _parse_display_name(headers.get("from", "")),
             "subject":      headers.get("subject", "(no subject)"),
@@ -349,7 +350,7 @@ def create_gmail_draft(email: dict, draft_text: str, gmail_service) -> str:
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
     draft = gmail_service.users().drafts().create(
         userId="me",
-        body={"message": {"raw": raw}}
+        body={"message": {"raw": raw, "threadId": email.get("thread_id", "")}}
     ).execute()
 
     log.info(f"Gmail draft created (id: {draft['id']}) — NOT sent. Awaiting human review.")
