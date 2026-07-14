@@ -1,15 +1,15 @@
 {
-  "name": "Apex Operations \u2014 AI Email Triage (Demo)",
+  "name": "Apex Operations — AI Email Triage (Demo)",
   "nodes": [
     {
       "parameters": {
-        "content": "## \ud83d\uddc2\ufe0f Apex Operations \u2014 AI Email Triage\n\n**What this workflow does:**\nPolls Gmail every 5 min \u2192 AI classifies email \u2192 retrieves relevant internal doc \u2192 drafts reply \u2192 saves to Gmail Drafts \u2192 logs to HubSpot \u2192 notifies Slack.\n\n**\u26a0\ufe0f No email is ever sent automatically.** All drafts require human review.\n\n**Flow:**\nGmail Trigger \u2192 AI Categorize \u2192 Parse JSON \u2192 [IF new_inquiry \u2192 Services Doc] [ELSE \u2192 Category Doc] \u2192 Draft LLM \u2192 Gmail Draft \u2192 HubSpot Lookup \u2192 [IF exists \u2192 Update] [ELSE \u2192 Create] \u2192 Slack Switch \u2192 Slack Notify",
+        "content": "## 🗂️ Apex Operations — AI Email Triage\n\n**What this workflow does:**\nPolls Gmail every 5 min → AI classifies email → retrieves relevant internal doc → drafts reply → saves to Gmail Drafts → logs to HubSpot → notifies Slack.\n\n**⚠️ No email is ever sent automatically.** All drafts require human review.\n\n**Flow:**\nGmail Trigger → AI Categorize → Parse JSON → [IF new_inquiry → Services Doc] [ELSE → Category Doc] → Draft LLM → Gmail Draft → HubSpot Lookup → [IF exists → Update] [ELSE → Create] → Slack Switch → Slack Notify",
         "height": 260,
         "width": 600,
         "color": 5
       },
       "id": "7b095f83-7d7b-45d9-9d01-f8e09c4489cf",
-      "name": "Sticky Note \u2014 Overview",
+      "name": "Sticky Note — Overview",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
@@ -19,13 +19,13 @@
     },
     {
       "parameters": {
-        "content": "## \ud83c\udfe2 HubSpot Find-or-Create Logic\n\nThe workflow searches HubSpot by sender email.\n\n- **Contact found** \u2192 Create a note on the existing record + update `last_inquiry_type` property.\n- **Contact not found** \u2192 Create a new contact (email, first name, last name, last_inquiry_type) then create the note.\n\nEither way, the triage log (category, priority, summary, AI draft) is always written as a HubSpot note.\n\n**Required scopes on your Private App:**\n`crm.objects.contacts.read` \u00b7 `crm.objects.contacts.write` \u00b7 `crm.objects.notes.write`",
+        "content": "## 🏢 HubSpot Find-or-Create Logic\n\nThe workflow searches HubSpot by sender email.\n\n- **Contact found** → Create a note on the existing record + update `last_inquiry_type` property.\n- **Contact not found** → Create a new contact (email, first name, last name, last_inquiry_type) then create the note.\n\nEither way, the triage log (category, priority, summary, AI draft) is always written as a HubSpot note.\n\n**Required scopes on your Private App:**\n`crm.objects.contacts.read` · `crm.objects.contacts.write` · `crm.objects.notes.write`",
         "height": 260,
         "width": 500,
         "color": 3
       },
       "id": "82563e0f-c777-489b-9674-099f8459e95d",
-      "name": "Sticky Note \u2014 HubSpot Logic",
+      "name": "Sticky Note — HubSpot Logic",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
@@ -35,13 +35,13 @@
     },
     {
       "parameters": {
-        "content": "## \u2709\ufe0f Human Review Required\n\n**This node saves a DRAFT \u2014 it does NOT send email.**\n\nThe AI-generated response is written to Gmail Drafts only. A team member must open Gmail, review the draft, edit as needed, and send manually.\n\nThe draft is labelled `[DRAFT FOR REVIEW]` at the top so it is never accidentally sent as-is.",
+        "content": "## ✉️ Human Review Required\n\n**This node saves a DRAFT — it does NOT send email.**\n\nThe AI-generated response is written to Gmail Drafts only. A team member must open Gmail, review the draft, edit as needed, and send manually.\n\nThe draft is labelled `[DRAFT FOR REVIEW]` at the top so it is never accidentally sent as-is.",
         "height": 200,
         "width": 380,
         "color": 4
       },
       "id": "c95875ff-d2d9-46f6-9cf3-743640220918",
-      "name": "Sticky Note \u2014 Gmail Draft",
+      "name": "Sticky Note — Gmail Draft",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
@@ -51,13 +51,13 @@
     },
     {
       "parameters": {
-        "content": "## \u2705 SETUP CHECKLIST\n\n1. Create Gmail label **'Client Incoming'** and set up Gmail filters to apply it to inbound client emails.\n2. Create **HubSpot Private App** with scopes: `crm.objects.contacts.read`, `crm.objects.contacts.write`, `crm.objects.notes.write`. Copy the access token.\n3. Add custom HubSpot contact property **`last_inquiry_type`** (type: single-line text).\n4. Create Slack channels: **#sales**, **#account-management**, **#admin**. Ensure bot is invited to each.\n5. **Swap all DEMO_ placeholder credentials** for real values in every node.\n6. Verify Google Drive folder ID **13LPG5a-EBYRlxurpI1b0P_1TsAOE5CCn** is accessible by your Drive OAuth account.\n7. Set OpenAI API key with access to **gpt-4o**.",
+        "content": "## ✅ SETUP CHECKLIST\n\n1. Create Gmail label **'Client Incoming'** and set up Gmail filters to apply it to inbound client emails.\n2. Create **HubSpot Private App** with scopes: `crm.objects.contacts.read`, `crm.objects.contacts.write`, `crm.objects.notes.write`. Copy the access token.\n3. Add custom HubSpot contact property **`last_inquiry_type`** (type: single-line text).\n4. Create Slack channels: **#sales**, **#account-management**, **#admin**. Ensure bot is invited to each.\n5. **Swap all DEMO_ placeholder credentials** for real values in every node.\n6. Verify Google Drive folder ID **13LPG5a-EBYRlxurpI1b0P_1TsAOE5CCn** is accessible by your Drive OAuth account.\n7. Set OpenAI API key with access to **gpt-4o**.",
         "height": 300,
         "width": 500,
         "color": 6
       },
       "id": "52aed0a9-6def-4a65-ab71-926107cbf65a",
-      "name": "Sticky Note \u2014 Setup Checklist",
+      "name": "Sticky Note — Setup Checklist",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
@@ -126,7 +126,7 @@
         }
       },
       "id": "cf125ade-59b0-437a-ae94-546899a9c7f0",
-      "name": "OpenAI \u2014 Categorize",
+      "name": "OpenAI — Categorize",
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.2,
       "position": [
@@ -166,11 +166,11 @@
           "mode": "list",
           "cachedResultName": "tom"
         },
-        "text": "=:warning: *Email triage failed \u2014 malformed AI response.*\nManual review needed for email from: {{ $('Gmail Trigger').item.json.from.value[0].address }}\nSubject: {{ $('Gmail Trigger').item.json.subject }}\n\nPlease process this email manually.",
+        "text": "=:warning: *Email triage failed — malformed AI response.*\nManual review needed for email from: {{ $('Gmail Trigger').item.json.from.value[0].address }}\nSubject: {{ $('Gmail Trigger').item.json.subject }}\n\nPlease process this email manually.",
         "otherOptions": {}
       },
       "id": "08cf91e2-690e-489a-abdb-42ed834dd865",
-      "name": "AI Parse Error \u2014 Slack Alert",
+      "name": "AI Parse Error — Slack Alert",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [
@@ -265,7 +265,7 @@
         "operation": "download",
         "fileId": {
           "__rl": true,
-          "value": "={{ $('Select Doc by Category').item.json.selected_file_id }}",
+          "value": "={{ $json.selected_file_id }}",
           "mode": "id"
         },
         "options": {}
@@ -301,7 +301,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first().json;\n// Google Drive download returns binary data \u2014 text is in $binary or data field\n// For exported Google Docs (text/plain), content may be in item.data or needs binary read\nlet docContent = 'Documentation not found \u2014 please draft this response manually referencing your internal SOPs.';\n\nif (item.data) {\n  docContent = Buffer.from(item.data, 'base64').toString('utf8');\n} else if (item.text) {\n  docContent = item.text;\n}\n\n// Pull triage data from Parse AI Response node\nconst triage = $('Parse AI Response').item.json;\n\nreturn [{\n  json: {\n    sender_email: triage.sender_email,\n    sender_name: triage.sender_name,\n    sender_first_name: triage.sender_first_name,\n    sender_last_name: triage.sender_last_name,\n    subject: triage.subject,\n    body: triage.body,\n    timestamp: triage.timestamp,\n    category: triage.category,\n    priority: triage.priority,\n    summary: triage.summary,\n    route_to: triage.route_to,\n    doc_content: docContent.substring(0, 8000)  // cap at 8k chars for context window\n  }\n}];"
+        "jsCode": "const item = $input.first().json;\n// Google Drive download returns binary data — text is in $binary or data field\n// For exported Google Docs (text/plain), content may be in item.data or needs binary read\nlet docContent = 'Documentation not found — please draft this response manually referencing your internal SOPs.';\n\nif (item.data) {\n  docContent = Buffer.from(item.data, 'base64').toString('utf8');\n} else if (item.text) {\n  docContent = item.text;\n}\n\n// Pull triage data from Parse AI Response node\nconst triage = $('Parse AI Response').item.json;\n\nreturn [{\n  json: {\n    sender_email: triage.sender_email,\n    sender_name: triage.sender_name,\n    sender_first_name: triage.sender_first_name,\n    sender_last_name: triage.sender_last_name,\n    subject: triage.subject,\n    body: triage.body,\n    timestamp: triage.timestamp,\n    category: triage.category,\n    priority: triage.priority,\n    summary: triage.summary,\n    route_to: triage.route_to,\n    doc_content: docContent.substring(0, 8000)  // cap at 8k chars for context window\n  }\n}];"
       },
       "id": "59f0e643-6ce0-4804-8e9e-a5036e473d7d",
       "name": "Prepare Doc Content",
@@ -316,7 +316,7 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "=You are a professional client communications assistant for a B2B operations consulting firm. Write a warm, concise reply to the email below. Sign off as \"The Apex Operations Team.\"\n\nReturn ONLY a JSON object with this exact field:\n{\"draft_text\": \"your full email reply here\"}\n\nNo other text. No markdown. Just the JSON object.\n\n---\n\nOriginal Email:\nFrom: {{ $('Prepare Doc Content').item.json.sender_name }} <{{ $('Prepare Doc Content').item.json.sender_email }}>\nSubject: {{ $('Prepare Doc Content').item.json.subject }}\nCategory: {{ $('Prepare Doc Content').item.json.category }}\nPriority: {{ $('Prepare Doc Content').item.json.priority }}\nSummary: {{ $('Prepare Doc Content').item.json.summary }}\n\nBody:\n{{ $('Prepare Doc Content').item.json.original_body }}"
+        "text": "=You are a professional client communications assistant for a B2B operations consulting firm. Write a warm, concise reply to the email below. Sign off as \"The Apex Operations Team.\"\n\nIMPORTANT RULES:\n- Base your reply ONLY on the reference document provided below.\n- If the document does not contain enough information to fully answer the client's question, do NOT invent details. Instead, write a warm holding reply acknowledging their enquiry and letting them know a team member will follow up shortly with a complete answer.\n- Never invent pricing, timelines, service details, or commitments not explicitly stated in the document.\n\nReturn ONLY a JSON object with this exact field:\n{\"draft_text\": \"your full email reply here\"}\n\nNo other text. No markdown. Just the JSON object.\n\n---\n\nReference Document:\n{{ $json.doc_content }}\n\n---\n\nOriginal Email:\nFrom: {{ $json.sender_name }} <{{ $json.sender_email }}>\nSubject: {{ $json.subject }}\nCategory: {{ $json.category }}\nPriority: {{ $json.priority }}\nSummary: {{ $json.summary }}\n\nBody:\n{{ $json.original_body }}"
       },
       "id": "329ab4de-0285-43a3-b221-9ef81504f337",
       "name": "Draft Email Response",
@@ -326,7 +326,7 @@
         2464,
         608
       ],
-      "description": "Drafts a professional client email response grounded in internal documentation. Output goes to Gmail Drafts for human review \u2014 never auto-sends."
+      "description": "Drafts a professional client email response grounded in internal documentation. Output goes to Gmail Drafts for human review — never auto-sends."
     },
     {
       "parameters": {
@@ -341,7 +341,7 @@
         }
       },
       "id": "27e6f410-e655-4b8a-9a9d-218c91dff105",
-      "name": "OpenAI \u2014 Draft",
+      "name": "OpenAI — Draft",
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.2,
       "position": [
@@ -376,7 +376,10 @@
         "resource": "draft",
         "subject": "=Re: {{ $('Parse AI Response').item.json.subject }}",
         "message": "={{ $('Extract Draft Text').item.json.draft_text }}",
-        "options": {}
+        "options": {
+          "threadId": "={{ $('Gmail Trigger').item.json.threadId }}",
+          "sendTo": "={{ $('Parse AI Response').item.json.sender_email }}"
+        }
       },
       "id": "3dc0d862-b232-43ba-a86b-f9c94049c10c",
       "name": "Create Gmail Draft",
@@ -386,7 +389,7 @@
         2912,
         608
       ],
-      "description": "Saves the AI-generated draft to Gmail Drafts. The team reviews and sends manually \u2014 no email is ever auto-sent.",
+      "description": "Saves the AI-generated draft to Gmail Drafts. The team reviews and sends manually — no email is ever auto-sent.",
       "webhookId": "68a1fe8b-4f1f-46a2-acbf-799ac020916c",
       "credentials": {
         "gmailOAuth2": {
@@ -490,7 +493,7 @@
     {
       "parameters": {
         "method": "PATCH",
-        "url": "=https://api.hubapi.com/crm/v3/objects/contacts/{{ $('Extract Contact ID').item.json.contact_id }}",
+        "url": "=https://api.hubapi.com/crm/v3/objects/contacts/{{ $json.contact_id }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -508,7 +511,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"properties\": {\n    \"last_inquiry_type\": \"{{ $('Extract Contact ID').item.json.category }}\"\n  }\n}",
+        "jsonBody": "={\n  \"properties\": {\n    \"last_inquiry_type\": \"={{ $json.category }}\"\n  }\n}",
         "options": {}
       },
       "id": "2310f965-0622-4f4d-9b23-86ef43818187",
@@ -570,7 +573,7 @@
         "options": {}
       },
       "id": "2697eba5-1fac-403d-bafb-6ab54c26993d",
-      "name": "Create Note \u2014 Existing Contact",
+      "name": "Create Note — Existing Contact",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -690,7 +693,7 @@
         "options": {}
       },
       "id": "91716f2c-021f-4a39-9a82-685ae0956725",
-      "name": "Create Note \u2014 New Contact",
+      "name": "Create Note — New Contact",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -809,7 +812,7 @@
         4448,
         608
       ],
-      "description": "Routes to the correct Slack channel based on route_to value: sales \u2192 #sales, account_manager \u2192 #account-management, admin \u2192 #admin."
+      "description": "Routes to the correct Slack channel based on route_to value: sales → #sales, account_manager → #account-management, admin → #admin."
     },
     {
       "parameters": {
@@ -824,7 +827,7 @@
         "otherOptions": {}
       },
       "id": "128c722b-b97e-48c5-92c3-ee982e91c3f1",
-      "name": "Slack \u2014 #sales",
+      "name": "Slack — #sales",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [
@@ -854,7 +857,7 @@
         "otherOptions": {}
       },
       "id": "eeabbba8-effa-4b7c-9253-c39ede0b52a7",
-      "name": "Slack \u2014 #account-management",
+      "name": "Slack — #account-management",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [
@@ -884,7 +887,7 @@
         "otherOptions": {}
       },
       "id": "9c535139-4461-4bf4-89b6-b7a05ca06d67",
-      "name": "Slack \u2014 #admin",
+      "name": "Slack — #admin",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [
@@ -935,7 +938,7 @@
             "index": 0
           },
           {
-            "node": "AI Parse Error \u2014 Slack Alert",
+            "node": "AI Parse Error — Slack Alert",
             "type": "main",
             "index": 0
           }
@@ -1092,14 +1095,14 @@
       "main": [
         [
           {
-            "node": "Create Note \u2014 Existing Contact",
+            "node": "Create Note — Existing Contact",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Create Note \u2014 Existing Contact": {
+    "Create Note — Existing Contact": {
       "main": [
         [
           {
@@ -1114,14 +1117,14 @@
       "main": [
         [
           {
-            "node": "Create Note \u2014 New Contact",
+            "node": "Create Note — New Contact",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Create Note \u2014 New Contact": {
+    "Create Note — New Contact": {
       "main": [
         [
           {
@@ -1147,28 +1150,28 @@
       "main": [
         [
           {
-            "node": "Slack \u2014 #sales",
+            "node": "Slack — #sales",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Slack \u2014 #account-management",
+            "node": "Slack — #account-management",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Slack \u2014 #admin",
+            "node": "Slack — #admin",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "OpenAI \u2014 Categorize": {
+    "OpenAI — Categorize": {
       "ai_languageModel": [
         [
           {
@@ -1179,7 +1182,7 @@
         ]
       ]
     },
-    "OpenAI \u2014 Draft": {
+    "OpenAI — Draft": {
       "ai_languageModel": [
         [
           {
@@ -1197,7 +1200,7 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "071f67ee-52b3-444a-8654-5f5a971411e4",
+  "versionId": "6673a62c-87a7-4898-aad2-b02a0c8a2277",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "073025d91f98beae4652fe50c9a704be20279100d039029d4b599840f6d98e37"
