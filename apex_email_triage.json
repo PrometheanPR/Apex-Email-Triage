@@ -265,7 +265,7 @@
         "operation": "download",
         "fileId": {
           "__rl": true,
-          "value": "={{ $json.selected_file_id }}",
+          "value": "={{ $('Select Doc by Category').item.json.selected_file_id }}",
           "mode": "id"
         },
         "options": {}
@@ -316,7 +316,7 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "=You are a professional client communications assistant for a B2B operations consulting firm. Write a warm, concise reply to the email below. Sign off as \"The Apex Operations Team.\"\n\nReturn ONLY a JSON object with this exact field:\n{\"draft_text\": \"your full email reply here\"}\n\nNo other text. No markdown. Just the JSON object.\n\n---\n\nOriginal Email:\nFrom: {{ $json.sender_name }} <{{ $json.sender_email }}>\nSubject: {{ $json.subject }}\nCategory: {{ $json.category }}\nPriority: {{ $json.priority }}\nSummary: {{ $json.summary }}\n\nBody:\n{{ $json.original_body }}"
+        "text": "=You are a professional client communications assistant for a B2B operations consulting firm. Write a warm, concise reply to the email below. Sign off as \"The Apex Operations Team.\"\n\nReturn ONLY a JSON object with this exact field:\n{\"draft_text\": \"your full email reply here\"}\n\nNo other text. No markdown. Just the JSON object.\n\n---\n\nOriginal Email:\nFrom: {{ $('Prepare Doc Content').item.json.sender_name }} <{{ $('Prepare Doc Content').item.json.sender_email }}>\nSubject: {{ $('Prepare Doc Content').item.json.subject }}\nCategory: {{ $('Prepare Doc Content').item.json.category }}\nPriority: {{ $('Prepare Doc Content').item.json.priority }}\nSummary: {{ $('Prepare Doc Content').item.json.summary }}\n\nBody:\n{{ $('Prepare Doc Content').item.json.original_body }}"
       },
       "id": "329ab4de-0285-43a3-b221-9ef81504f337",
       "name": "Draft Email Response",
@@ -375,7 +375,7 @@
       "parameters": {
         "resource": "draft",
         "subject": "=Re: {{ $('Parse AI Response').item.json.subject }}",
-        "message": "={{ $json.draft_text }}",
+        "message": "={{ $('Extract Draft Text').item.json.draft_text }}",
         "options": {}
       },
       "id": "3dc0d862-b232-43ba-a86b-f9c94049c10c",
@@ -490,7 +490,7 @@
     {
       "parameters": {
         "method": "PATCH",
-        "url": "=https://api.hubapi.com/crm/v3/objects/contacts/{{ $json.contact_id }}",
+        "url": "=https://api.hubapi.com/crm/v3/objects/contacts/{{ $('Extract Contact ID').item.json.contact_id }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -508,7 +508,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"properties\": {\n    \"last_inquiry_type\": \"={{ $json.category }}\"\n  }\n}",
+        "jsonBody": "={\n  \"properties\": {\n    \"last_inquiry_type\": \"{{ $('Extract Contact ID').item.json.category }}\"\n  }\n}",
         "options": {}
       },
       "id": "2310f965-0622-4f4d-9b23-86ef43818187",
