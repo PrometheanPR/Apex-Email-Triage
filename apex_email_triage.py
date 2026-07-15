@@ -121,7 +121,14 @@ def get_google_credentials():
             creds.refresh(GoogleAuthRequest())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(creds_path, GOOGLE_SCOPES)
-            creds = flow.run_local_server(port=0, open_browser=False)
+            flow.redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
+            auth_url, _ = flow.authorization_url(prompt="consent")
+            print("\n\n>>> Open this URL in your browser:\n")
+            print(auth_url)
+            print("\n>>> After approving, paste the authorization CODE here (not the full URL):")
+            code = input("Enter code: ").strip()
+            flow.fetch_token(code=code)
+            creds = flow.credentials
         with open(token_path, "wb") as f:
             pickle.dump(creds, f)
 
