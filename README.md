@@ -50,54 +50,57 @@ Typical use cases: consulting firms, agencies, managed service providers, profes
 
 ## Architecture — AI Email Triage
 
+![AI Email Triage Workflow](./workflow_diagram.png)
+
 ### Option A — n8n Setup
 
-#### Prerequisites — n8n Variables
-
-This workflow uses n8n Variables for configuration values that differ per client instance. Before importing the workflow, go to the **Variables** tab in your n8n Cloud instance and create the following:
-
-| Variable Name | Description | Example Value |
-|---|---|---|
-| `HUBSPOT_PORTAL_ID` | Your HubSpot portal ID — found in any HubSpot URL after `/contacts/` | `148877081` |
-
-> To find your portal ID: log into HubSpot and look at the URL — it appears as `https://app.hubspot.com/contacts/YOUR_PORTAL_ID/...`
-
-These variables are referenced in the workflow as `{{ $vars.HUBSPOT_PORTAL_ID }}` and must be set before the workflow will run correctly.
-
-#### Prerequisites — HubSpot Custom Properties
-
-The workflow writes a custom contact property that must be created in HubSpot before the workflow runs. Go to **HubSpot → Settings → Properties → Contact Properties → Create property**:
-
-| Property Label | Internal Name | Field Type |
-|---|---|---|
-| Last Inquiry Type | `last_inquiry_type` | Single-line text |
-
-> If this property does not exist, HubSpot will return a `PROPERTY_DOESNT_EXIST` error and the contact creation step will fail.
-
-#### Setup Steps
-
-1. Complete the prerequisites above (Variables + HubSpot custom property)
-2. Import `apex_email_triage.json` via Workflows → Import
-3. Re-select credentials for Gmail, HubSpot, Google Drive, OpenAI, and Slack
-4. **Activate the workflow** using the Publish button in the top-right corner
-5. Send a test email to your connected Gmail account to trigger a run
-6. Check Executions to verify each node completed successfully
-
----
+1. Import `apex_doc_upload.json` via Workflows → Import
+2. Open the **Receive Document Upload** node and copy the Production webhook URL
+3. Open `upload_form.html` and replace `YOUR_WEBHOOK_URL_HERE` with the copied URL
+4. Configure Google Drive OAuth2 and Slack OAuth2 credentials
+5. **Activate the workflow** before testing — webhook URLs only work when active
+6. Open `upload_form.html` in a browser and test with a sample PDF
 
 ### Option B — Python Setup
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Install additional dependency
+pip install flask
 
-# Copy and configure environment variables
-cp .env.example .env
-# Edit .env and fill in all values
+# Run the server
+python apex_doc_upload.py
 
-# Run the script
-python apex_email_triage.py
+# Open your browser at:
+# http://localhost:5678
 ```
+
+Set `WEBHOOK_URL` in `upload_form.html` to `http://localhost:5678/webhook/upload-document` for local testing.
+
+### Accepted File Types
+- PDF (`.pdf`)
+- Word Document (`.docx`)
+
+### Document Categories
+| Form Label | Internal Value |
+|------------|---------------|
+| Services Overview | `services` |
+| Billing & Admin | `billing` |
+| Client Support FAQ | `faq` |
+| Compliance SOP | `compliance` |
+| Vendor Management | `vendor` |
+| Other | `other` |
+
+### Security
+The webhook is protected by a **shared secret header** (`X-Upload-Secret`). Every request from the form includes this header. The server rejects anything that doesn't match.
+
+**To configure:**
+1. Generate a secret: `python -c "import secrets; print(secrets.token_hex(32))"`
+2. Add `UPLOAD_SECRET=<your-secret>` to your `.env` file
+3. Replace `UPLOAD_SECRET_HERE` in `upload_form.html` with the same value
+
+For full production security, host the form behind an identity provider (Cloudflare Access, Google IAP) so only authenticated users can load the page at all.
+
+---
 
 ---
 
@@ -112,6 +115,10 @@ The Document Ingestion Portal adds a self-service web form that lets team member
 | `apex_doc_upload.json` | Importable n8n webhook workflow |
 | `apex_doc_upload.py` | Python Flask server — same logic, no n8n required |
 | `upload_form.html` | Branded HTML upload form |
+
+### Architecture — Document Ingestion Portal
+
+![Document Ingestion Portal Workflow](./doc_ingestion_diagram.png)
 
 ### Option A — n8n Setup
 
