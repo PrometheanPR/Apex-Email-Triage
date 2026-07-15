@@ -39,7 +39,7 @@ Typical use cases: consulting firms, agencies, managed service providers, profes
 | File | Purpose |
 |------|---------|
 | `apex_email_triage.json` | Importable n8n workflow — drag into n8n via Workflows → Import |
-| `apex_email_triage.py` | Standalone Python equivalent — runs without n8n |
+| `apex_email_triage.py` | Standalone Python equivalent — runs without n8n (see note below) |
 | `apex_doc_upload.json` | n8n webhook workflow for the Document Ingestion Portal |
 | `apex_doc_upload.py` | Python Flask server equivalent for the Document Ingestion Portal |
 | `upload_form.html` | Branded HTML form for document uploads |
@@ -47,6 +47,8 @@ Typical use cases: consulting firms, agencies, managed service providers, profes
 | `README.md` | This file |
 
 ---
+
+> **Note on the Python implementation:** `apex_email_triage.py` has been syntax-validated and all dependencies verified. End-to-end testing requires a **local Python environment** with a browser available for the one-time Google OAuth flow. Google's OAuth2 implementation does not support headless server environments (such as Google Cloud Shell) for Desktop app credentials. The n8n workflow (`apex_email_triage.json`) is the **production-tested implementation**. The Python file is provided as a developer reference and portfolio companion.
 
 ## Architecture — AI Email Triage
 
