@@ -101,11 +101,12 @@ GOOGLE_SCOPES = [
 
 # ── Google Auth ────────────────────────────────────────────────
 
-def get_google_service(service_name: str, version: str):
+def get_google_credentials():
     """
-    Authenticates with Google using OAuth2 and returns a service client.
-    On first run, opens a browser for user consent and saves token.pickle.
-    On subsequent runs, loads the saved token (refreshing if expired).
+    Authenticates with Google OAuth2 ONCE and saves credentials to token.pickle.
+    Both Gmail and Drive services share the same credentials object.
+    On first run, opens a browser for user consent.
+    On subsequent runs, loads and auto-refreshes the saved token.
     """
     creds = None
     token_path = "token.pickle"
@@ -120,10 +121,17 @@ def get_google_service(service_name: str, version: str):
             creds.refresh(GoogleAuthRequest())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(creds_path, GOOGLE_SCOPES)
-            creds = flow.run_local_server(port=0)
+            creds = flow.run_local_server(port=0, open_browser=False)
         with open(token_path, "wb") as f:
             pickle.dump(creds, f)
 
+    return creds
+
+
+def get_google_service(service_name: str, version: str, creds=None):
+    """Returns a Google API service client using the provided credentials."""
+    if creds is None:
+        creds = get_google_credentials()
     return google_build(service_name, version, credentials=creds)
 
 
@@ -551,8 +559,9 @@ def process_emails():
     # Initialise clients
     openai_client = OpenAI(api_key=OPENAI_API_KEY)
     slack_client  = SlackClient(token=SLACK_BOT_TOKEN)
-    gmail_service = get_google_service("gmail", "v1")
-    drive_service = get_google_service("drive", "v3")
+    google_creds  = get_google_credentials()
+    gmail_service = get_google_service("gmail", "v1", creds=google_creds)
+    drive_service = get_google_service("drive", "v3", creds=google_creds)
 
     # Poll Gmail for new emails
     emails = poll_gmail_for_new_emails(gmail_service)
