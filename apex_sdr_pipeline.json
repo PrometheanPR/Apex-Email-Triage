@@ -1,0 +1,722 @@
+{
+  "name": "Apex SDR Pipeline — Patent Outreach",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🔬 Apex SDR Pipeline — Patent Outreach\n\n**What this workflow does:**\nRuns weekly → queries USPTO PatentsView for unassigned utility patents → enriches inventors via Apollo → scores confidence → routes to the correct Instantly outreach sequence → logs everything to Google Sheets.\n\n**Flow:**\nSchedule → Query PatentsView → Parse Patents → Write to Sheets → [Loop per patent] → Enrich via Apollo → Score Confidence → Route: [needs_review → Flag Sheet] [inventor_found → Instantly Inventor Sequence] [attorney_fallback → Enrich Attorney → Instantly Attorney Sequence] → Update Sheet Row\n\n⚠️ Low-confidence records are flagged in the Sheet for manual review and are NEVER entered into an Instantly sequence automatically.",
+        "height": 280,
+        "width": 680,
+        "color": 5
+      },
+      "id": "sticky-overview",
+      "name": "Sticky Note — Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "content": "## ✅ SETUP CHECKLIST\n\n1. **PatentsView API** — Register at patentsview.org/api/doc. No key required for basic use; add key header if rate-limited.\n2. **Google Sheets** — Create a Sheet with columns: Patent Number | Inventor Name | Attorney Name | Summary | Location | Filing Date | Inventor Email | Inventor LinkedIn | Confidence Score | Route | Sequence | Status | Notes\n   Copy the Sheet ID from the URL.\n3. **Apollo API Key** — Found in Apollo Settings → API Keys.\n4. **Instantly API Key** — Found in Instantly Settings → API.\n5. **Calendly/Cal.com link** — Your booking page URL. Paste into the booking link constant in the Booking workflow.\n6. **Swap all DEMO_ placeholders** in credentials before activating.\n7. Set the Google Sheets Sheet ID in every Sheets node (search for DEMO_SHEET_ID).\n8. Set your Instantly Campaign IDs for inventor and attorney sequences (search for DEMO_INVENTOR_CAMPAIGN_ID and DEMO_ATTORNEY_CAMPAIGN_ID).",
+        "height": 320,
+        "width": 580,
+        "color": 6
+      },
+      "id": "sticky-setup",
+      "name": "Sticky Note — Setup Checklist",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, 320]
+    },
+    {
+      "parameters": {
+        "content": "## 📊 Confidence Scoring Logic\n\nThe enrichment confidence score (0–100) is calculated in the **Score Confidence** node:\n\n| Signal | Points |\n|---|---|\n| Email found | +40 |\n| Email verified by Apollo | +20 |\n| LinkedIn URL found | +20 |\n| Employment matches patent filing location | +10 |\n| Apollo record has >3 data points | +10 |\n\n**Thresholds:**\n- Score ≥ 70 → `inventor_found` (enter inventor sequence)\n- Score 40–69 → `attorney_fallback` (enrich attorney instead)\n- Score < 40 → `needs_review` (flag in Sheet, skip sequences)\n\nAdjust thresholds in the **Score Confidence** Code node to match acceptable sender reputation risk.",
+        "height": 320,
+        "width": 480,
+        "color": 3
+      },
+      "id": "sticky-confidence",
+      "name": "Sticky Note — Confidence Scoring",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [700, 0]
+    },
+    {
+      "parameters": {
+        "content": "## ⚠️ Loop Architecture Note\n\nThe SplitInBatches node processes one patent at a time through the enrichment → routing → outreach chain.\n\nThis ensures:\n- Apollo rate limits are respected (add a Wait node if needed)\n- Each patent is independently enriched and routed\n- A failure on one record does not block the rest\n\nIf Apollo rate limits become an issue, add a **Wait** node (2–3 seconds) between the Apollo call and the next loop iteration.",
+        "height": 220,
+        "width": 420,
+        "color": 4
+      },
+      "id": "sticky-loop",
+      "name": "Sticky Note — Loop Architecture",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1200, 0]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": [1],
+              "triggerAtHour": 8,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "node-schedule",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 680],
+      "description": "Fires every Monday at 8:00 AM. Starts the patent discovery run."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://search.patentsview.org/api/v1/patent/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"q\": {\n    \"_and\": [\n      {\"patent_type\": \"utility\"},\n      {\"_gte\": {\"patent_date\": \"{{ $now.minus({days: 30}).toFormat('yyyy-MM-dd') }}\"}}\n    ]\n  },\n  \"f\": [\"patent_id\", \"patent_title\", \"patent_date\", \"inventor_first_name\", \"inventor_last_name\", \"inventor_city\", \"inventor_state\", \"attorney_first_name\", \"attorney_last_name\", \"assignee_id\"],\n  \"o\": {\"per_page\": 50},\n  \"s\": [{\"patent_date\": \"desc\"}]\n}",
+        "options": {}
+      },
+      "id": "node-query-patents",
+      "name": "Query PatentsView API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 680],
+      "description": "Queries USPTO PatentsView for utility patents filed in the last 30 days. Returns up to 50 results. Filters for unassigned patents in Parse Patents node."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse PatentsView API response and extract the 6 required fields per patent.\n// Also filters out patents that have an assignee (i.e. already assigned to a company).\n// Maps to: Patent Discovery stage.\n\nconst response = $input.first().json;\nconst patents = response.patents || [];\n\nconst results = [];\n\nfor (const patent of patents) {\n  // Skip patents that have an assignee — we only want unassigned ones\n  if (patent.assignee_id && patent.assignee_id !== null && patent.assignee_id !== '') {\n    continue;\n  }\n\n  const inventors = patent.inventors || [];\n  const attorneys = patent.attorneys || [];\n\n  const primaryInventor = inventors[0] || {};\n  const primaryAttorney = attorneys[0] || {};\n\n  const inventorName = [\n    primaryInventor.inventor_first_name || '',\n    primaryInventor.inventor_last_name || ''\n  ].filter(Boolean).join(' ').trim() || 'Unknown';\n\n  const attorneyName = [\n    primaryAttorney.attorney_first_name || '',\n    primaryAttorney.attorney_last_name || ''\n  ].filter(Boolean).join(' ').trim() || 'Unknown';\n\n  const location = [\n    primaryInventor.inventor_city || '',\n    primaryInventor.inventor_state || ''\n  ].filter(Boolean).join(', ') || 'Unknown';\n\n  results.push({\n    json: {\n      patent_number:  patent.patent_id || '',\n      patent_summary: patent.patent_title || '',\n      filing_date:    patent.patent_date || '',\n      inventor_name:  inventorName,\n      inventor_first: primaryInventor.inventor_first_name || '',\n      inventor_last:  primaryInventor.inventor_last_name || '',\n      attorney_name:  attorneyName,\n      attorney_first: primaryAttorney.attorney_first_name || '',\n      attorney_last:  primaryAttorney.attorney_last_name || '',\n      location:       location,\n      // Enrichment fields — populated in later nodes\n      inventor_email:    '',\n      inventor_linkedin: '',\n      confidence_score:  0,\n      route:             'pending',\n      sequence:          '',\n      status:            'pending',\n      notes:             ''\n    }\n  });\n}\n\nif (results.length === 0) {\n  // Return a single item flagging no results so the workflow completes cleanly\n  return [{ json: { no_results: true, message: 'No unassigned patents found this week.' } }];\n}\n\nreturn results;"
+      },
+      "id": "node-parse-patents",
+      "name": "Parse Patents",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 680],
+      "description": "Extracts 6 fields per patent: inventor name, attorney name, patent number, summary, location, filing date. Filters out assigned patents."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "check-no-results",
+              "leftValue": "={{ $json.no_results }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-check-results",
+      "name": "Any Patents Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [900, 680],
+      "description": "If PatentsView returned no unassigned patents this week, stops the workflow cleanly. True = no results (stop). False = patents found (continue)."
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "DEMO_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Patent Number":    "={{ $json.patent_number }}",
+            "Inventor Name":   "={{ $json.inventor_name }}",
+            "Attorney Name":   "={{ $json.attorney_name }}",
+            "Summary":         "={{ $json.patent_summary }}",
+            "Location":        "={{ $json.location }}",
+            "Filing Date":     "={{ $json.filing_date }}",
+            "Status":          "pending"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "node-write-sheets",
+      "name": "Write Patents to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1120, 780],
+      "description": "Appends one row per patent to the Google Sheet. Columns: Patent Number, Inventor Name, Attorney Name, Summary, Location, Filing Date, Status.",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "DEMO_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets — REPLACE WITH YOUR CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "node-loop",
+      "name": "Loop — One Patent at a Time",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1340, 780],
+      "description": "Processes each patent one at a time through enrichment and routing. Prevents Apollo rate limit errors."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apollo.io/v1/people/match",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Api-Key",
+              "value": "DEMO_APOLLO_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"first_name\": \"{{ $json.inventor_first }}\",\n  \"last_name\": \"{{ $json.inventor_last }}\",\n  \"city\": \"{{ $json.location.split(',')[0].trim() }}\",\n  \"state\": \"{{ $json.location.split(',')[1] ? $json.location.split(',')[1].trim() : '' }}\",\n  \"reveal_personal_emails\": true\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "node-apollo-inventor",
+      "name": "Enrich Inventor via Apollo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 780],
+      "description": "Sends inventor first name, last name, and location to Apollo People Match API. Returns email, LinkedIn URL, and profile data if found."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Score enrichment confidence for the inventor record.\n// Combines signals from Apollo response with the original patent data.\n// Low scores protect Instantly sender reputation by blocking unverified leads.\n\nconst apolloData  = $input.first().json;\nconst patentData  = $('Loop — One Patent at a Time').item.json;\n\nconst person = apolloData.person || {};\nconst email  = person.email || '';\nconst emailStatus = person.email_status || '';  // 'verified', 'likely', 'guessed', etc.\nconst linkedin    = person.linkedin_url || '';\nconst employment  = person.employment_history || [];\nconst numDataPoints = Object.keys(person).filter(k => person[k] !== null && person[k] !== '').length;\n\nlet score = 0;\nlet notes = [];\n\n// +40 if any email found\nif (email && email.includes('@')) {\n  score += 40;\n  notes.push('Email found');\n} else {\n  notes.push('No email found');\n}\n\n// +20 if email is verified by Apollo\nif (emailStatus === 'verified') {\n  score += 20;\n  notes.push('Email verified');\n} else if (email) {\n  notes.push(`Email status: ${emailStatus}`);\n}\n\n// +20 if LinkedIn URL found\nif (linkedin) {\n  score += 20;\n  notes.push('LinkedIn found');\n} else {\n  notes.push('No LinkedIn');\n}\n\n// +10 if Apollo record has more than 3 data points (richer profile)\nif (numDataPoints > 3) {\n  score += 10;\n  notes.push('Rich Apollo profile');\n}\n\n// +10 if location matches patent filing location\nconst patentLocation = (patentData.location || '').toLowerCase();\nconst apolloCity     = (person.city || '').toLowerCase();\nif (apolloCity && patentLocation.includes(apolloCity)) {\n  score += 10;\n  notes.push('Location matches');\n}\n\n// Determine routing based on score thresholds\nlet route;\nif (score >= 70) {\n  route = 'inventor_found';\n} else if (score >= 40) {\n  route = 'attorney_fallback';\n} else {\n  route = 'needs_review';\n}\n\nreturn [{\n  json: {\n    // Carry forward all original patent fields\n    ...patentData,\n    // Enrichment results\n    inventor_email:    email,\n    inventor_linkedin: linkedin,\n    apollo_email_status: emailStatus,\n    confidence_score:  score,\n    route:             route,\n    notes:             notes.join(' | '),\n    // Raw Apollo person object for attorney fallback use\n    apollo_person:     person\n  }\n}];"
+      },
+      "id": "node-score-confidence",
+      "name": "Score Confidence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 780],
+      "description": "Scores enrichment confidence 0–100 based on email found (+40), email verified (+20), LinkedIn found (+20), rich profile (+10), location match (+10). Sets route: inventor_found / attorney_fallback / needs_review."
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "route-needs-review",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "needs_review",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "needs_review"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "route-inventor",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "inventor_found",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "inventor_found"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "route-attorney",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "attorney_fallback",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "attorney_fallback"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-route",
+      "name": "Route Lead",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [2000, 780],
+      "description": "Routes each patent record based on confidence score: needs_review (score < 40) → flag in Sheet only. inventor_found (score ≥ 70) → inventor Instantly sequence. attorney_fallback (score 40–69) → enrich attorney then attorney sequence."
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "DEMO_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Patent Number":     "={{ $json.patent_number }}",
+            "Confidence Score":  "={{ $json.confidence_score }}",
+            "Route":             "needs_review",
+            "Status":            "⚠️ Needs Manual Review",
+            "Notes":             "={{ $json.notes }}"
+          },
+          "matchingColumns": ["Patent Number"],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "node-flag-review",
+      "name": "Flag for Manual Review",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2220, 580],
+      "description": "Updates the Sheet row for low-confidence records. Marks Status as 'Needs Manual Review'. These records are NOT entered into any Instantly sequence.",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "DEMO_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets — REPLACE WITH YOUR CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.instantly.ai/api/v1/lead/add",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"api_key\": \"DEMO_INSTANTLY_API_KEY\",\n  \"campaign_id\": \"DEMO_INVENTOR_CAMPAIGN_ID\",\n  \"skip_if_in_workspace\": true,\n  \"leads\": [\n    {\n      \"email\": \"{{ $json.inventor_email }}\",\n      \"first_name\": \"{{ $json.inventor_first }}\",\n      \"last_name\": \"{{ $json.inventor_last }}\",\n      \"custom_variables\": {\n        \"patent_number\": \"{{ $json.patent_number }}\",\n        \"patent_summary\": \"{{ $json.patent_summary }}\",\n        \"filing_date\": \"{{ $json.filing_date }}\",\n        \"linkedin\": \"{{ $json.inventor_linkedin }}\"\n      }\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "node-instantly-inventor",
+      "name": "Add to Inventor Sequence",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2220, 780],
+      "description": "Adds the inventor to the Instantly inventor outreach campaign. Uses skip_if_in_workspace to prevent duplicate entries. Custom variables pass patent context for personalized messaging."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apollo.io/v1/people/match",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Api-Key",
+              "value": "DEMO_APOLLO_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"first_name\": \"{{ $json.attorney_first }}\",\n  \"last_name\": \"{{ $json.attorney_last }}\",\n  \"reveal_personal_emails\": true\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "node-apollo-attorney",
+      "name": "Enrich Attorney via Apollo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2220, 980],
+      "description": "Fallback: enriches the patent attorney via Apollo when inventor confidence is too low. Uses attorney first/last name from the original patent data."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge attorney Apollo enrichment back onto the original patent data.\n// Applies same confidence check — if attorney email also missing, flag for review.\n\nconst apolloData = $input.first().json;\nconst patentData = $('Score Confidence').item.json;\n\nconst person = apolloData.person || {};\nconst email  = person.email || '';\nconst linkedin = person.linkedin_url || '';\n\nlet status, sequence, notes;\n\nif (email && email.includes('@')) {\n  status   = 'attorney_sequence';\n  sequence = 'DEMO_ATTORNEY_CAMPAIGN_ID';\n  notes    = `Attorney fallback — email found (${person.email_status || 'unknown status'})`;\n} else {\n  status   = '⚠️ Needs Manual Review';\n  sequence = '';\n  notes    = 'Attorney fallback — no email found either. Manual review required.';\n}\n\nreturn [{\n  json: {\n    ...patentData,\n    attorney_email:    email,\n    attorney_linkedin: linkedin,\n    route:             'attorney_fallback',\n    status:            status,\n    sequence:          sequence,\n    notes:             notes\n  }\n}];"
+      },
+      "id": "node-parse-attorney",
+      "name": "Parse Attorney Enrichment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2440, 980],
+      "description": "Merges attorney Apollo data back onto the patent record. If attorney email found, routes to attorney sequence. If not, flags for manual review."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "check-attorney-email",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "attorney_sequence",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-check-attorney",
+      "name": "Attorney Email Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2660, 980],
+      "description": "If Apollo found an attorney email → enter attorney sequence. If not → flag for manual review."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.instantly.ai/api/v1/lead/add",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"api_key\": \"DEMO_INSTANTLY_API_KEY\",\n  \"campaign_id\": \"DEMO_ATTORNEY_CAMPAIGN_ID\",\n  \"skip_if_in_workspace\": true,\n  \"leads\": [\n    {\n      \"email\": \"{{ $json.attorney_email }}\",\n      \"first_name\": \"{{ $json.attorney_first }}\",\n      \"last_name\": \"{{ $json.attorney_last }}\",\n      \"custom_variables\": {\n        \"inventor_name\": \"{{ $json.inventor_name }}\",\n        \"patent_number\": \"{{ $json.patent_number }}\",\n        \"patent_summary\": \"{{ $json.patent_summary }}\",\n        \"filing_date\": \"{{ $json.filing_date }}\"\n      }\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "node-instantly-attorney",
+      "name": "Add to Attorney Sequence",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2880, 880],
+      "description": "Adds the attorney to the Instantly attorney outreach campaign with a separate tone and cadence from the inventor sequence."
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "DEMO_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Patent Number":      "={{ $json.patent_number }}",
+            "Inventor Email":     "={{ $json.inventor_email || '' }}",
+            "Inventor LinkedIn":  "={{ $json.inventor_linkedin || '' }}",
+            "Confidence Score":   "={{ $json.confidence_score }}",
+            "Route":              "={{ $json.route }}",
+            "Sequence":           "={{ $json.sequence || 'Inventor' }}",
+            "Status":             "in_sequence",
+            "Notes":              "={{ $json.notes }}"
+          },
+          "matchingColumns": ["Patent Number"],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "node-update-sheet-inventor",
+      "name": "Update Sheet — Inventor Sequence",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2440, 780],
+      "description": "Updates the Sheet row after the inventor is entered into the Instantly sequence. Logs email, LinkedIn, confidence score, route, and status.",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "DEMO_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets — REPLACE WITH YOUR CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "DEMO_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Patent Number":    "={{ $json.patent_number }}",
+            "Confidence Score": "={{ $json.confidence_score }}",
+            "Route":            "attorney_fallback",
+            "Sequence":         "Attorney",
+            "Status":           "in_sequence",
+            "Notes":            "={{ $json.notes }}"
+          },
+          "matchingColumns": ["Patent Number"],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "node-update-sheet-attorney",
+      "name": "Update Sheet — Attorney Sequence",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [3100, 880],
+      "description": "Updates the Sheet row after the attorney is entered into the Instantly sequence.",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "DEMO_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets — REPLACE WITH YOUR CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "DEMO_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Patent Number":    "={{ $json.patent_number }}",
+            "Confidence Score": "={{ $json.confidence_score }}",
+            "Route":            "attorney_fallback",
+            "Status":           "⚠️ Needs Manual Review",
+            "Notes":            "={{ $json.notes }}"
+          },
+          "matchingColumns": ["Patent Number"],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "node-flag-attorney-review",
+      "name": "Flag Attorney — Needs Review",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2880, 1080],
+      "description": "If even the attorney email could not be found, flags the row for manual review. Record is not entered into any sequence.",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "DEMO_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets — REPLACE WITH YOUR CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## 🔁 Loop continues here\n\nAfter each branch completes (flag, inventor sequence, or attorney sequence), the loop cycles back to process the next patent.\n\nAll three branches reconnect to the SplitInBatches node via their respective output connections.",
+        "height": 160,
+        "width": 340,
+        "color": 7
+      },
+      "id": "sticky-loop-end",
+      "name": "Sticky Note — Loop End",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [3200, 580]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[{"node": "Query PatentsView API", "type": "main", "index": 0}]]
+    },
+    "Query PatentsView API": {
+      "main": [[{"node": "Parse Patents", "type": "main", "index": 0}]]
+    },
+    "Parse Patents": {
+      "main": [[{"node": "Any Patents Found?", "type": "main", "index": 0}]]
+    },
+    "Any Patents Found?": {
+      "main": [
+        [],
+        [{"node": "Write Patents to Sheets", "type": "main", "index": 0}]
+      ]
+    },
+    "Write Patents to Sheets": {
+      "main": [[{"node": "Loop — One Patent at a Time", "type": "main", "index": 0}]]
+    },
+    "Loop — One Patent at a Time": {
+      "main": [
+        [],
+        [{"node": "Enrich Inventor via Apollo", "type": "main", "index": 0}]
+      ]
+    },
+    "Enrich Inventor via Apollo": {
+      "main": [[{"node": "Score Confidence", "type": "main", "index": 0}]]
+    },
+    "Score Confidence": {
+      "main": [[{"node": "Route Lead", "type": "main", "index": 0}]]
+    },
+    "Route Lead": {
+      "main": [
+        [{"node": "Flag for Manual Review",     "type": "main", "index": 0}],
+        [{"node": "Add to Inventor Sequence",    "type": "main", "index": 0}],
+        [{"node": "Enrich Attorney via Apollo",  "type": "main", "index": 0}]
+      ]
+    },
+    "Flag for Manual Review": {
+      "main": [[{"node": "Loop — One Patent at a Time", "type": "main", "index": 0}]]
+    },
+    "Add to Inventor Sequence": {
+      "main": [[{"node": "Update Sheet — Inventor Sequence", "type": "main", "index": 0}]]
+    },
+    "Update Sheet — Inventor Sequence": {
+      "main": [[{"node": "Loop — One Patent at a Time", "type": "main", "index": 0}]]
+    },
+    "Enrich Attorney via Apollo": {
+      "main": [[{"node": "Parse Attorney Enrichment", "type": "main", "index": 0}]]
+    },
+    "Parse Attorney Enrichment": {
+      "main": [[{"node": "Attorney Email Found?", "type": "main", "index": 0}]]
+    },
+    "Attorney Email Found?": {
+      "main": [
+        [{"node": "Add to Attorney Sequence",      "type": "main", "index": 0}],
+        [{"node": "Flag Attorney — Needs Review",  "type": "main", "index": 0}]
+      ]
+    },
+    "Add to Attorney Sequence": {
+      "main": [[{"node": "Update Sheet — Attorney Sequence", "type": "main", "index": 0}]]
+    },
+    "Update Sheet — Attorney Sequence": {
+      "main": [[{"node": "Loop — One Patent at a Time", "type": "main", "index": 0}]]
+    },
+    "Flag Attorney — Needs Review": {
+      "main": [[{"node": "Loop — One Patent at a Time", "type": "main", "index": 0}]]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
